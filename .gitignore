@@ -17,3 +17,4 @@ build/
 *.swo
 *~
 .streamlit/secrets.toml
+data/sessions.json

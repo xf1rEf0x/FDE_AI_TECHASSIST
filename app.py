@@ -6,6 +6,13 @@ from src.conversation import get_response, get_response_stream
 from src.prompts import get_available_roles, get_system_prompt, get_prompt_templates
 from src.config import get_gemini_model, get_available_models
 from src.utils import format_message
+from src.sessions import (
+    create_session,
+    get_session,
+    delete_session,
+    list_sessions,
+    update_session,
+)
 
 st.set_page_config(
     page_title="TechAssist AI",
@@ -29,6 +36,9 @@ if "model" not in st.session_state:
 
 if "template_selected" not in st.session_state:
     st.session_state.template_selected = None
+
+if "current_session_id" not in st.session_state:
+    st.session_state.current_session_id = None
 
 # Sidebar: Role and model selector
 with st.sidebar:
@@ -67,10 +77,48 @@ with st.sidebar:
     with st.expander("ℹ️ About your role"):
         st.markdown(get_system_prompt(st.session_state.role))
 
+    st.divider()
+
+    # Session history section
+    st.subheader("📋 Session History")
+
+    # List saved sessions
+    sessions = list_sessions()
+    if sessions:
+        for session_id, session_data in sessions:
+            col1, col2 = st.columns([3, 1])
+            with col1:
+                if st.button(
+                    f"🔄 {session_data['name'][:40]}",
+                    use_container_width=True,
+                    key=f"load_{session_id}"
+                ):
+                    loaded = get_session(session_id)
+                    if loaded:
+                        st.session_state.messages = loaded["messages"]
+                        st.session_state.role = loaded["role"]
+                        st.session_state.current_session_id = session_id
+                        st.success(f"✓ Loaded: {loaded['name']}")
+                        st.rerun()
+            with col2:
+                if st.button("🗑️", key=f"delete_{session_id}", help="Delete session"):
+                    delete_session(session_id)
+                    if st.session_state.current_session_id == session_id:
+                        st.session_state.current_session_id = None
+                        st.session_state.messages = []
+                    st.success("Deleted")
+                    st.rerun()
+        st.caption(f"Total: {len(sessions)} session(s)")
+    else:
+        st.caption("💬 Start a conversation to create a session")
+
+    st.divider()
+
     # Clear conversation button
-    if st.button("🗑️ Clear Conversation", use_container_width=True):
+    if st.button("New Chat", use_container_width=True):
         st.session_state.messages = []
         st.session_state.template_selected = None
+        st.session_state.current_session_id = None
         st.success("Conversation cleared!")
         st.rerun()
 
@@ -134,6 +182,15 @@ if user_input:
         # Add assistant message to history
         assistant_message = format_message("assistant", full_response)
         st.session_state.messages.append(assistant_message)
+
+        # Auto-create session on first response if not already in a session
+        if not st.session_state.current_session_id:
+            st.session_state.current_session_id = create_session(st.session_state.role, st.session_state.messages)
+
+        # Auto-save current session
+        if st.session_state.current_session_id:
+            update_session(st.session_state.current_session_id, st.session_state.messages)
+            st.rerun()
 
     except ValueError as e:
         st.error(f"❌ {e}")
