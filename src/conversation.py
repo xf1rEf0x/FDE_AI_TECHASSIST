@@ -11,13 +11,14 @@ def initialize_client() -> genai.Client:
     return genai.Client(api_key=api_key)
 
 
-def get_response(user_message: str, role: str, history: list[dict]) -> str:
+def get_response(user_message: str, role: str, history: list[dict], temperature: float = 0.7) -> str:
     """Get response from Gemini API for a user message.
 
     Args:
         user_message: The user's latest message
         role: User role ("employee", "engineer", or "admin")
         history: List of previous messages in format [{"role": "user"/"assistant", "content": "..."}]
+        temperature: Temperature for response generation (0.0 - 2.0)
 
     Returns:
         Assistant response string
@@ -47,8 +48,13 @@ def get_response(user_message: str, role: str, history: list[dict]) -> str:
         "parts": [{"text": user_message}]
     })
 
-    # Create chat and add system prompt as first message
-    chat = client.chats.create(model=model)
+    # Create chat with temperature setting and add system prompt
+    chat = client.chats.create(
+        model=model,
+        config={
+            "temperature": temperature
+        }
+    )
     chat.system_instruction = system_prompt
 
     # Send message and get response
@@ -66,7 +72,7 @@ def get_response(user_message: str, role: str, history: list[dict]) -> str:
         return full_response
 
 
-def get_response_stream(user_message: str, role: str, history: list[dict], model: str = None):
+def get_response_stream(user_message: str, role: str, history: list[dict], model: str = None, temperature: float = 0.7):
     """Get streaming response from Gemini API.
 
     Yields text chunks as they arrive from the API.
@@ -76,6 +82,7 @@ def get_response_stream(user_message: str, role: str, history: list[dict], model
         role: User role ("employee", "engineer", or "admin")
         history: List of previous messages
         model: Gemini model to use (defaults to config value)
+        temperature: Temperature for response generation (0.0 - 2.0)
 
     Yields:
         Text chunks from the response
@@ -92,8 +99,13 @@ def get_response_stream(user_message: str, role: str, history: list[dict], model
     model_name = model or get_gemini_model()
     system_prompt = get_system_prompt(role)
 
-    # Create chat and set system instruction
-    chat = client.chats.create(model=model_name)
+    # Create chat with temperature setting and set system instruction
+    chat = client.chats.create(
+        model=model_name,
+        config={
+            "temperature": temperature
+        }
+    )
     chat.system_instruction = system_prompt
 
     # Add history to chat - send only non-empty messages

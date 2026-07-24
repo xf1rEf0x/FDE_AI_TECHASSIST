@@ -40,6 +40,9 @@ if "template_selected" not in st.session_state:
 if "current_session_id" not in st.session_state:
     st.session_state.current_session_id = None
 
+if "temperature" not in st.session_state:
+    st.session_state.temperature = 0.7
+
 # Sidebar: Role and model selector
 with st.sidebar:
     st.header("Settings")
@@ -72,6 +75,16 @@ with st.sidebar:
         st.session_state.model = selected_model
         os.environ["GEMINI_MODEL"] = selected_model
         st.success(f"✓ Switched to {selected_model}")
+
+    # Temperature slider
+    st.session_state.temperature = st.slider(
+        "Temperature:",
+        min_value=0.0,
+        max_value=2.0,
+        value=st.session_state.temperature,
+        step=0.1,
+        help="Lower = more focused/deterministic, Higher = more creative/random"
+    )
 
     # Show current role info
     with st.expander("ℹ️ About your role"):
@@ -172,7 +185,7 @@ if user_input:
             full_response = ""
 
             # Use streaming to display response in real-time
-            for chunk in get_response_stream(user_input, st.session_state.role, st.session_state.messages[:-1], st.session_state.model):
+            for chunk in get_response_stream(user_input, st.session_state.role, st.session_state.messages[:-1], st.session_state.model, st.session_state.temperature):
                 full_response += chunk
                 message_placeholder.markdown(full_response + "▌")
 
