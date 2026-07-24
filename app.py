@@ -3,7 +3,7 @@
 import os
 import streamlit as st
 from src.conversation import get_response, get_response_stream
-from src.prompts import get_available_roles, get_system_prompt
+from src.prompts import get_available_roles, get_system_prompt, get_prompt_templates
 from src.config import get_gemini_model, get_available_models
 from src.utils import format_message
 
@@ -26,6 +26,9 @@ if "role" not in st.session_state:
 
 if "model" not in st.session_state:
     st.session_state.model = get_gemini_model()
+
+if "template_selected" not in st.session_state:
+    st.session_state.template_selected = None
 
 # Sidebar: Role and model selector
 with st.sidebar:
@@ -67,6 +70,7 @@ with st.sidebar:
     # Clear conversation button
     if st.button("🗑️ Clear Conversation", use_container_width=True):
         st.session_state.messages = []
+        st.session_state.template_selected = None
         st.success("Conversation cleared!")
         st.rerun()
 
@@ -78,6 +82,22 @@ for message in st.session_state.messages:
 
 # User input
 user_input = st.chat_input("Ask me anything about IT support...")
+
+# Prompt templates below chat input
+if not st.session_state.messages:
+    st.markdown("**Quick questions for your role:**")
+    templates = get_prompt_templates(st.session_state.role)
+    cols = st.columns(len(templates))
+    for idx, template in enumerate(templates):
+        with cols[idx]:
+            if st.button(template, use_container_width=True, key=f"template_{idx}_{template[:10]}"):
+                st.session_state.template_selected = template
+                st.rerun()
+
+# Handle template selection
+if st.session_state.template_selected and not st.session_state.messages:
+    user_input = st.session_state.template_selected
+    st.session_state.template_selected = None
 
 if user_input:
     # Validate input

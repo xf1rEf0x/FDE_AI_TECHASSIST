@@ -64,3 +64,39 @@ def get_system_prompt(role: str) -> str:
 def get_available_roles() -> list[str]:
     """Get list of available roles."""
     return list(SYSTEM_PROMPTS.keys())
+
+
+PROMPT_TEMPLATES = {
+    "employee": [
+        "I forgot my password. How do I reset it?",
+        "I can't connect to the VPN. What should I do?",
+        "I need to install software on my laptop. How do I request it?",
+    ],
+    "engineer": [
+        "How should we configure load balancing for our API servers?",
+        "What's the best approach for implementing automated failover?",
+        "What monitoring and alerting strategy would you recommend?",
+    ],
+    "admin": [
+        "What's our current password policy and should we update it?",
+        "How do we ensure compliance with security audit requirements?",
+        "What authentication methods should we enforce organization-wide?",
+    ],
+}
+
+
+def get_prompt_templates(role: str) -> list[str]:
+    """Get prompt templates for a given role.
+
+    Args:
+        role: One of "employee", "engineer", "admin"
+
+    Returns:
+        List of prompt template strings for the role.
+
+    Raises:
+        ValueError: If role is not recognized.
+    """
+    if role not in PROMPT_TEMPLATES:
+        raise ValueError(f"Unknown role: {role}. Must be one of {list(PROMPT_TEMPLATES.keys())}")
+    return PROMPT_TEMPLATES[role]
