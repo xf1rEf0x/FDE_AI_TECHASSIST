@@ -41,7 +41,11 @@ def get_response(user_message: str, role: str, history: list[dict], temperature:
 
     # Invoke chain and get response
     response = chain.invoke({"user_input": user_message})
-    return response.content
+    content = response.content
+    # Handle both string and list responses (Gemini may return list of content blocks)
+    if isinstance(content, list):
+        content = "".join(str(item) for item in content)
+    return content
 
 
 def get_response_stream(user_message: str, role: str, history: list[dict], temperature: float = 0.7, provider: str = "huggingface"):
@@ -83,6 +87,9 @@ def get_response_stream(user_message: str, role: str, history: list[dict], tempe
     # HuggingFace via LangChain may not support true streaming; yield the full response
     response = chain.invoke({"user_input": user_message})
     text = response.content
+    # Handle both string and list responses (Gemini may return list of content blocks)
+    if isinstance(text, list):
+        text = "".join(str(item) for item in text)
 
     # Simulate streaming by yielding the response in chunks
     chunk_size = 20

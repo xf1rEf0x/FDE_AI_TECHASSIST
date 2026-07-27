@@ -75,7 +75,7 @@ def create_langchain_model(temperature: float = 0.7, provider: str = "huggingfac
     elif provider == "gemini":
         api_key = get_gemini_api_key()
         model = ChatGoogleGenerativeAI(
-            model="gemini-pro",
+            model="gemini-3.5-flash-lite",
             temperature=temperature,
             google_api_key=api_key,
         )
