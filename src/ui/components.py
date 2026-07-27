@@ -234,6 +234,16 @@ def demo_components():
     form_group("Username", "text", help_text="Enter your username", key="demo_username")
     form_group("Password", "password", help_text="Enter your password", key="demo_password")
 
+    # Demo info_box
+    st.subheader("info_box")
+    col1, col2 = st.columns(2)
+    with col1:
+        info_box("This is an info message", "info")
+        info_box("This is a success message", "success")
+    with col2:
+        info_box("This is a warning message", "warning")
+        info_box("This is an error message", "error")
+
 
 if __name__ == "__main__":
     st.set_page_config(page_title="Component Demo", layout="wide")
