@@ -17,7 +17,7 @@ from src.sessions import (
 )
 from src.ui.helpdesk_tab import render_helpdesk_tab
 from src.ui.external_services_tab import render_external_services_tab
-from src.ui.components import form_group, info_box, status_badge, sidebar_section
+from src.ui.components import form_group, info_box, status_badge, sidebar_section, header_card, message_container, action_card
 from src.auth import login, logout, get_current_user, is_admin
 
 # ============================================================================
@@ -206,12 +206,12 @@ tab_helpdesk = tab_objects[1]
 tab_services = tab_objects[2] if len(tab_objects) > 2 else None
 
 with tab_chat:
-    st.subheader("Conversation")
+    # Header with title and description
+    header_card("Chat with IT Support", "Ask questions about IT issues, get instant help")
 
     # Chat history container (scrollable)
     for message in st.session_state.messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+        message_container(message["content"], message["role"])
 
     # Prompt templates (shown only when empty)
     if not st.session_state.messages:
@@ -220,7 +220,12 @@ with tab_chat:
         cols = st.columns(len(templates))
         for idx, template in enumerate(templates):
             with cols[idx]:
-                if st.button(template, use_container_width=True, key=f"template_{idx}_{template[:10]}"):
+                if action_card(
+                    title=template[:30] + "..." if len(template) > 30 else template,
+                    description=template[30:60] + "..." if len(template) > 60 else (template[30:] if len(template) > 30 else ""),
+                    icon="💬",
+                    key=f"template_{idx}_{template[:10]}"
+                ):
                     st.session_state.template_selected = template
                     st.rerun()
 
@@ -235,7 +240,7 @@ with tab_chat:
     if user_input:
         # Validate input
         if not user_input.strip():
-            st.warning("Please enter a message.")
+            info_box("Please enter a message.", "warning")
             st.stop()
 
         # Add user message to history
@@ -267,13 +272,12 @@ with tab_chat:
             st.rerun()
 
         except ValueError as e:
-            st.error(f"❌ {e}")
+            info_box(str(e), "error")
         except Exception as e:
             error_msg = str(e)
-            st.error(f"❌ Error: {error_msg}")
+            info_box(f"Error: {error_msg}", "error")
             if "API" in error_msg or "key" in error_msg.lower():
-                st.info("Please check your HuggingFace API key in `.env` and try again.")
-
+                info_box("Please check your HuggingFace API key in `.env` and try again.", "info")
 with tab_helpdesk:
     render_helpdesk_tab(current_user.get("email"))
 
