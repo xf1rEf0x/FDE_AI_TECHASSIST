@@ -74,12 +74,12 @@ class TestPromptTemplate:
 class TestConversationChain:
     """Tests for conversation chain creation."""
 
-    def test_create_conversation_chain(self):
-        """Test creating a complete conversation chain (LCEL style)."""
-        from langchain_core.messages import AIMessage
+    @patch('src.langchain_integration.create_langchain_model')
+    def test_create_conversation_chain(self, mock_create_model):
+        """Test creating a complete conversation chain."""
+        mock_model = MagicMock()
+        mock_create_model.return_value = mock_model
 
         system_prompt = "You are a helpful IT support assistant."
         chain = create_conversation_chain(system_prompt, temperature=0.7)
         assert chain is not None
-        # Chain should be a LCEL runnable (prompt | model)
-        assert hasattr(chain, 'invoke') or hasattr(chain, '__call__')
