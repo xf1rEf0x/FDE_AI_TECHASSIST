@@ -3,7 +3,7 @@
 import pytest
 from src.auth import login
 from src.auth_config import USERS
-from src.asset_search_tool import search_assets_by_employee
+from src.tools.asset_search_tool import search_assets_by_employee
 
 
 class TestLoginRoleBinding:
@@ -67,7 +67,7 @@ class TestLoginRoleBinding:
 
     def test_asset_search_by_type_respects_user_id(self):
         """Test that asset type search respects user_id restriction."""
-        from src.asset_search_tool import search_assets_by_type
+        from src.tools.asset_search_tool import search_assets_by_type
 
         # Alice searching for Laptops with her user_id should only see her laptop
         results = search_assets_by_type("Laptop", user_id="EMP001", is_admin=False)
@@ -77,7 +77,7 @@ class TestLoginRoleBinding:
 
     def test_asset_search_by_serial_respects_user_id(self):
         """Test that serial number search respects user_id restriction."""
-        from src.asset_search_tool import search_assets_by_serial
+        from src.tools.asset_search_tool import search_assets_by_serial
 
         # Alice's laptop serial number
         results = search_assets_by_serial("C02XQ8NWLXJX", user_id="EMP001", is_admin=False)

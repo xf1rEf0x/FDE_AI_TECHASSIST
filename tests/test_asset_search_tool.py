@@ -1,7 +1,7 @@
 """Tests for asset search tool."""
 
 import pytest
-from src.asset_search_tool import (
+from src.tools.asset_search_tool import (
     search_assets_by_employee,
     search_assets_by_serial,
     search_assets_by_type,

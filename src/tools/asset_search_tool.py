@@ -7,7 +7,7 @@ from typing import Optional
 from langchain_core.tools import tool
 
 
-ASSETS_DATA_PATH = Path(__file__).parent.parent / "data" / "employee_assets.json"
+ASSETS_DATA_PATH = Path(__file__).parent.parent.parent / "data" / "employee_assets.json"
 
 
 def load_assets_data() -> dict:

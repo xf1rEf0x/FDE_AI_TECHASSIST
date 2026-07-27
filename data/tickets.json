@@ -16,5 +16,41 @@
     "status": "open",
     "created_at": "2026-07-27T13:50:29.022188+00:00",
     "updated_at": "2026-07-27T13:50:29.022197+00:00"
+  },
+  {
+    "id": "51183a17-b654-4efb-9732-99bed1522a57",
+    "owner_email": "alice@techassist.com",
+    "title": "Laptop Performance Issue",
+    "description": "My laptop has been running slowly for the past week.",
+    "status": "open",
+    "created_at": "2026-07-27T17:21:32.556501+00:00",
+    "updated_at": "2026-07-27T17:21:32.556523+00:00"
+  },
+  {
+    "id": "05b4f841-2562-458a-a98d-9700e5acf5ad",
+    "owner_email": "test@techassist.com",
+    "title": "Test Ticket",
+    "description": "Test Description",
+    "status": "open",
+    "created_at": "2026-07-27T17:22:48.704562+00:00",
+    "updated_at": "2026-07-27T17:22:48.704575+00:00"
+  },
+  {
+    "id": "1a21c7b0-ddcf-4fdb-8bf0-027bce3243b4",
+    "owner_email": "alice@techassist.com",
+    "title": "Laptop Performance Issue",
+    "description": "My laptop has been running slowly for the past week.",
+    "status": "open",
+    "created_at": "2026-07-27T17:23:37.719604+00:00",
+    "updated_at": "2026-07-27T17:23:37.719612+00:00"
+  },
+  {
+    "id": "9d37d396-d8d5-48c9-9709-e11c155836c9",
+    "owner_email": "alice@techassist.com",
+    "title": "VPN Connection Issue",
+    "description": "User is unable to connect to the VPN. Please investigate.",
+    "status": "open",
+    "created_at": "2026-07-27T17:35:45.065337+00:00",
+    "updated_at": "2026-07-27T17:35:45.065369+00:00"
   }
 ]

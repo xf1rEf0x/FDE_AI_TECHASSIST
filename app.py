@@ -1,7 +1,7 @@
 """TechAssist AI Phase 1: Streamlit chatbot with role-based personas."""
 
-import warnings
-warnings.filterwarnings("ignore", module="transformers.*")
+import logging
+logging.getLogger("streamlit.watcher.local_sources_watcher").setLevel(logging.ERROR)
 
 import os
 from dotenv import load_dotenv
@@ -111,9 +111,6 @@ if "current_session_id" not in st.session_state:
 if "temperature" not in st.session_state:
     st.session_state.temperature = 0.7
 
-if "provider" not in st.session_state:
-    st.session_state.provider = "huggingface"
-
 # Sidebar: Role and model selector
 with st.sidebar:
     st.header("Settings")
@@ -126,21 +123,8 @@ with st.sidebar:
         if st.button("🚪 Logout", use_container_width=True):
             logout()
 
-    # Settings section with provider and temperature controls
+    # Settings section with temperature control
     def render_settings():
-        st.session_state.provider = st.selectbox(
-            "LLM Provider:",
-            ["HuggingFace", "Gemini"],
-            index=0 if st.session_state.provider.lower() == "huggingface" else 1,
-            help="Switch between HuggingFace (DeepSeek-R1) and Gemini (Google)"
-        )
-
-        # Dynamic info box
-        if st.session_state.provider.lower() == "huggingface":
-            info_box("Using HuggingFace model: DeepSeek-R1", "info")
-        else:
-            info_box("Using Gemini model: gemini-pro", "info")
-
         # Temperature slider
         st.session_state.temperature = st.slider(
             "Temperature:",

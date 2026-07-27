@@ -23,7 +23,7 @@ from src.tools.software_tools import (
     approve_request_tool,
     reject_request_tool,
 )
-from src.asset_search_tool import search_employee_assets
+from src.tools.asset_search_tool import search_employee_assets
 
 
 class TechAssistAgent:
@@ -39,7 +39,7 @@ class TechAssistAgent:
         user_email: str,
         user_role: str = "employee",
         temperature: float = 0.0,
-        model_name: str = "gemini-3.5-flash-lite",
+        model_name: str = "gemini-3.1-flash-lite",
     ):
         """
         Initialize TechAssistAgent.
@@ -292,6 +292,16 @@ class TechAssistAgent:
 ==== YOUR IDENTITY ====
 - User Email: {self.user_email}
 - User Role: {self.user_role}
+
+==== RESPONSE FORMAT ====
+Always format your responses using markdown:
+- Use **bold** for important information
+- Use `code` for ticket IDs, request IDs, and technical terms
+- Use bullet points (- ) for lists
+- Use numbered lists (1. ) for steps
+- Use ### headers for sections
+- Use > for important notes
+- Use tables when presenting structured data
 
 ==== YOUR CAPABILITIES ====
 All ticket, password, software, and asset operations are automatically scoped to the current user.

@@ -88,13 +88,13 @@ def form_group(label: str, input_type: str, help_text: Optional[str] = None, key
     st.markdown(f"**{label}**")
 
     if input_type == "textarea":
-        value = st.text_area("", key=key, help=help_text or "", **kwargs)
+        value = st.text_area(label, key=key, help=help_text or "", label_visibility="collapsed", **kwargs)
     elif input_type == "text":
-        value = st.text_input("", key=key, help=help_text or "", **kwargs)
+        value = st.text_input(label, key=key, help=help_text or "", label_visibility="collapsed", **kwargs)
     elif input_type == "password":
-        value = st.text_input("", key=key, type="password", help=help_text or "", **kwargs)
+        value = st.text_input(label, key=key, type="password", help=help_text or "", label_visibility="collapsed", **kwargs)
     elif input_type == "number":
-        value = st.number_input("", key=key, help=help_text or "", **kwargs)
+        value = st.number_input(label, key=key, help=help_text or "", label_visibility="collapsed", **kwargs)
     else:
         raise ValueError(f"Invalid input_type: {input_type}")
 
@@ -151,42 +151,12 @@ def message_container(content: str, role: str, timestamp: Optional[str] = None) 
         role: One of "user", "assistant", "system"
         timestamp: Optional timestamp string
     """
-    import html
-    escaped_content = html.escape(content)
-
     if role == "user":
-        st.html(
-            f"""
-            <div style='display: flex; justify-content: flex-end; margin: 12px 0;'>
-                <div style='background-color: {COLOR_USER_BG}; border-radius: 8px; padding: 12px 16px; max-width: 70%; text-align: left;'>
-                    <div style='color: #1f2937; font-size: 0.95em;'>{escaped_content}</div>
-                    {f"<div style='font-size: 0.8em; color: #6b7280; margin-top: 6px;'>{timestamp}</div>" if timestamp else ""}
-                </div>
-            </div>
-            """
-        )
+        st.chat_message("user").markdown(content)
     elif role == "assistant":
-        st.html(
-            f"""
-            <div style='display: flex; justify-content: flex-start; margin: 12px 0;'>
-                <div style='background-color: white; border-left: 4px solid {COLOR_PRIMARY}; border-radius: 4px; padding: 12px 16px; max-width: 70%;'>
-                    <div style='color: #1f2937; font-size: 0.95em;'>{escaped_content}</div>
-                    {f"<div style='font-size: 0.8em; color: #6b7280; margin-top: 6px;'>{timestamp}</div>" if timestamp else ""}
-                </div>
-            </div>
-            """
-        )
+        st.chat_message("assistant").markdown(content)
     else:
-        st.html(
-            f"""
-            <div style='display: flex; justify-content: center; margin: 12px 0;'>
-                <div style='background-color: {COLOR_SURFACE}; border-radius: 4px; padding: 12px 16px; max-width: 80%; text-align: center;'>
-                    <div style='color: {COLOR_NEUTRAL}; font-size: 0.9em;'>{escaped_content}</div>
-                    {f"<div style='font-size: 0.8em; color: #999999; margin-top: 6px;'>{timestamp}</div>" if timestamp else ""}
-                </div>
-            </div>
-            """
-        )
+        st.markdown(content)
 
 
 def info_box(message: str, severity: str, dismissible: bool = False) -> None:
