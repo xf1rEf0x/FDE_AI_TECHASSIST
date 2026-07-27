@@ -8,7 +8,7 @@ from dotenv import load_dotenv
 import streamlit as st
 
 load_dotenv()
-from src.conversation import get_response, get_response_stream
+from src.conversation import get_agent_instance
 from src.prompts import get_available_roles, get_system_prompt
 from src.utils import format_message
 from src.sessions import (
@@ -96,6 +96,9 @@ st.markdown("*Your friendly IT support assistant for TechAssist Solutions*")
 # Initialize session state
 if "messages" not in st.session_state:
     st.session_state.messages = []
+
+if "agent" not in st.session_state:
+    st.session_state.agent = None
 
 # Role is now bound to logged-in user's role, not settable
 current_user = get_current_user()
@@ -239,13 +242,19 @@ with tab_chat:
     # Get and display assistant response after messages are shown
     if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "user":
         try:
-            full_response = ""
-            with st.spinner("🤔 Thinking..."):
-                # Collect full response with streaming
-                for chunk in get_response_stream(st.session_state.messages[-1]["content"], st.session_state.role, st.session_state.messages[:-1], temperature=st.session_state.temperature, provider=st.session_state.provider.lower()):
-                    full_response += chunk
+            # Initialize agent for this session if not already done
+            if st.session_state.agent is None:
+                st.session_state.agent = get_agent_instance(
+                    current_user["email"],
+                    st.session_state.role,
+                    st.session_state.temperature
+                )
 
-            # Add assistant message to history
+            with st.spinner("🤔 Thinking..."):
+                # Get response from agent (has its own memory)
+                full_response = st.session_state.agent.invoke(st.session_state.messages[-1]["content"])
+
+            # Add assistant message to history (for Streamlit display only)
             assistant_message = format_message("assistant", full_response)
             st.session_state.messages.append(assistant_message)
 
@@ -265,7 +274,7 @@ with tab_chat:
             error_msg = str(e)
             info_box(f"Error: {error_msg}", "error")
             if "API" in error_msg or "key" in error_msg.lower():
-                info_box("Please check your HuggingFace API key in `.env` and try again.", "info")
+                info_box("Please check your Gemini API key in `.env` and try again.", "info")
 with tab_helpdesk:
     render_helpdesk_tab(current_user.get("email"))
 
