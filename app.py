@@ -88,6 +88,9 @@ if "current_session_id" not in st.session_state:
 if "temperature" not in st.session_state:
     st.session_state.temperature = 0.7
 
+if "provider" not in st.session_state:
+    st.session_state.provider = "huggingface"
+
 # Sidebar: Role and model selector
 with st.sidebar:
     st.header("Settings")
@@ -102,7 +105,19 @@ with st.sidebar:
 
     st.divider()
 
-    st.info("🤖 Using HuggingFace model: DeepSeek-R1")
+    # Provider selector
+    st.session_state.provider = st.selectbox(
+        "LLM Provider:",
+        ["HuggingFace", "Gemini"],
+        index=0 if st.session_state.provider.lower() == "huggingface" else 1,
+        help="Switch between HuggingFace (DeepSeek-R1) and Gemini (Google)"
+    )
+
+    # Dynamic info box
+    if st.session_state.provider.lower() == "huggingface":
+        st.info("🤖 Using HuggingFace model: DeepSeek-R1")
+    else:
+        st.info("🤖 Using Gemini model: gemini-pro")
 
     # Temperature slider
     st.session_state.temperature = st.slider(
@@ -223,7 +238,7 @@ with tab_chat:
                 full_response = ""
 
                 # Use streaming to display response in real-time
-                for chunk in get_response_stream(user_input, st.session_state.role, st.session_state.messages[:-1], temperature=st.session_state.temperature):
+                for chunk in get_response_stream(user_input, st.session_state.role, st.session_state.messages[:-1], temperature=st.session_state.temperature, provider=st.session_state.provider.lower()):
                     full_response += chunk
                     message_placeholder.markdown(full_response + "▌")
 
