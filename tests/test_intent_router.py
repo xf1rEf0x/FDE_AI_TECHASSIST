@@ -15,9 +15,11 @@ def mock_chat_model():
         def mock_invoke(prompt):
             """Mock invoke that returns appropriate intent based on prompt content."""
             user_msg = prompt.split('User message: "')[1].split('"')[0] if 'User message: "' in prompt else ""
-            
+
             # Check exact messages first
             if "My laptop screen is broken" in user_msg or "broken, can you create a ticket" in user_msg:
+                return AIMessage(content='{"intent": "helpdesk", "confidence": 0.95, "clarification": null}')
+            elif "Create a support ticket to change my laptop" in user_msg:
                 return AIMessage(content='{"intent": "helpdesk", "confidence": 0.95, "clarification": null}')
             elif "Microsoft Office license" in user_msg:
                 return AIMessage(content='{"intent": "software_request", "confidence": 0.92, "clarification": null}')
@@ -66,3 +68,10 @@ class TestIntentDetection:
         assert result["clarification"] is not None
         # When clarification is present, intent should be unknown or low confidence
         assert result["intent"] == "unknown" or result["confidence"] < 0.7
+
+    def test_ticket_with_device_name_resolves_to_helpdesk(self, router):
+        """Test: Ticket request with device name (laptop) correctly routes to HELPDESK, not ASSET_SEARCH."""
+        result = router.detect_intent("Create a support ticket to change my laptop", [])
+        assert result["intent"] == "helpdesk"
+        assert result["confidence"] > 0.7
+        assert result["clarification"] is None

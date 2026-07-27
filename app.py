@@ -1,5 +1,8 @@
 """TechAssist AI Phase 1: Streamlit chatbot with role-based personas."""
 
+import warnings
+warnings.filterwarnings("ignore", module="transformers.*")
+
 import os
 import streamlit as st
 from src.conversation import get_response, get_response_stream

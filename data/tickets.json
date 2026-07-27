@@ -1,1 +1,20 @@
-[]
+[
+  {
+    "id": "3e8a3d58-de7a-48ce-a2a9-1e95ca102534",
+    "owner_email": "alice@techassist.com",
+    "title": "Change laptop",
+    "description": "Request to replace current laptop",
+    "status": "closed",
+    "created_at": "2026-07-27T13:46:52.873969+00:00",
+    "updated_at": "2026-07-27T13:48:17.979808+00:00"
+  },
+  {
+    "id": "b0a3f4f8-d51a-48cf-961f-85497cc4ae80",
+    "owner_email": "alice@techassist.com",
+    "title": "Replace laptop with Windows",
+    "description": "Request to replace current laptop with a Windows laptop.",
+    "status": "open",
+    "created_at": "2026-07-27T13:50:29.022188+00:00",
+    "updated_at": "2026-07-27T13:50:29.022197+00:00"
+  }
+]

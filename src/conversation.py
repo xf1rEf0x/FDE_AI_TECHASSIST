@@ -3,6 +3,13 @@
 from langchain_core.prompts import ChatPromptTemplate, SystemMessagePromptTemplate, HumanMessagePromptTemplate
 from src.langchain_integration import create_langchain_model
 from src.prompts import get_system_prompt, get_available_roles
+from src.rag import get_rag_retriever
+
+
+def _should_use_rag(user_message: str) -> bool:
+    """Check if message is about password or VPN issues."""
+    keywords = ["password", "vpn", "connect", "reset", "change password", "access", "login", "authentication", "account unlock"]
+    return any(kw in user_message.lower() for kw in keywords)
 
 
 def get_response(user_message: str, role: str, history: list[dict], temperature: float = 0.7, provider: str = "huggingface") -> str:
@@ -31,8 +38,21 @@ def get_response(user_message: str, role: str, history: list[dict], temperature:
     system_prompt = get_system_prompt(role)
     model = create_langchain_model(temperature, provider)
 
-    # Build chat prompt with system instruction
-    system_msg = SystemMessagePromptTemplate.from_template(system_prompt)
+    # Inject RAG context if relevant
+    rag_context = ""
+    if _should_use_rag(user_message):
+        try:
+            rag_retriever = get_rag_retriever()
+            rag_context = rag_retriever.format_context(user_message)
+        except Exception:
+            pass  # Continue without RAG if retrieval fails
+
+    # Build chat prompt with system instruction and optional RAG context
+    enriched_system_prompt = system_prompt
+    if rag_context:
+        enriched_system_prompt += f"\n\n{rag_context}"
+
+    system_msg = SystemMessagePromptTemplate.from_template(enriched_system_prompt)
     human_msg = HumanMessagePromptTemplate.from_template("{user_input}")
     chat_prompt = ChatPromptTemplate.from_messages([system_msg, human_msg])
 
@@ -83,8 +103,21 @@ def get_response_stream(user_message: str, role: str, history: list[dict], tempe
     system_prompt = get_system_prompt(role)
     llm = create_langchain_model(temperature, provider)
 
-    # Build chat prompt
-    system_msg = SystemMessagePromptTemplate.from_template(system_prompt)
+    # Inject RAG context if relevant
+    rag_context = ""
+    if _should_use_rag(user_message):
+        try:
+            rag_retriever = get_rag_retriever()
+            rag_context = rag_retriever.format_context(user_message)
+        except Exception:
+            pass  # Continue without RAG if retrieval fails
+
+    # Build chat prompt with optional RAG context
+    enriched_system_prompt = system_prompt
+    if rag_context:
+        enriched_system_prompt += f"\n\n{rag_context}"
+
+    system_msg = SystemMessagePromptTemplate.from_template(enriched_system_prompt)
     human_msg = HumanMessagePromptTemplate.from_template("{user_input}")
     chat_prompt = ChatPromptTemplate.from_messages([system_msg, human_msg])
 
