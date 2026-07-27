@@ -2,11 +2,12 @@
 
 import pytest
 from unittest.mock import patch, MagicMock
+from langchain_core.messages import AIMessage
 
 
 @pytest.fixture
-def mock_gemini_response():
-    """Mock Gemini API responses by role and intent."""
+def mock_hf_response():
+    """Mock HuggingFace API responses by role and intent."""
     responses = {
         ("employee", "password"): "To reset your password:\n1. Go to the IT Portal (portal.company.com)\n2. Click 'Reset Password'\n3. Follow the instructions\n\nIf you have issues, contact the helpdesk.",
         ("employee", "vpn"): "To access VPN:\n1. Download the VPN client\n2. Enter your credentials\n3. Connect to the office network\n\nFor setup help, see the IT knowledge base.",
@@ -16,16 +17,8 @@ def mock_gemini_response():
         ("admin", "vpn"): "VPN audit: log all connections in syslog. Review quarterly. MFA mandatory. Compliance: NIST 800-171.",
     }
 
-    def get_response(user_message, system_prompt=None):
-        # Extract role and intent from system prompt and message
-        role = "employee"
-        for r in ["engineer", "admin"]:
-            if r in system_prompt.lower() if system_prompt else False:
-                role = r
-                break
-
+    def get_response(user_message, role="employee"):
         intent = "password" if "password" in user_message.lower() else "vpn" if "vpn" in user_message.lower() else "general"
-
         key = (role, intent)
         return responses.get(key, f"I can help with that as a {role}.")
 
@@ -33,32 +26,26 @@ def mock_gemini_response():
 
 
 @pytest.fixture
-def mock_gemini_client(mock_gemini_response):
-    """Mock the Gemini client."""
-    with patch("src.conversation.genai.Client") as mock_client_class:
-        mock_client = MagicMock()
-        mock_client_class.return_value = mock_client
+def mock_hf_chat_model(mock_hf_response):
+    """Mock the HuggingFace chat model (ChatHuggingFace)."""
+    with patch("src.langchain_integration.ChatHuggingFace") as mock_model_class:
+        def mock_invoke(input_dict):
+            user_input = input_dict.get("user_input", "")
+            # Extract role from system prompt if available
+            role = "employee"
+            return AIMessage(content=mock_hf_response(user_input, role))
 
-        # Mock the chat object
-        mock_chat = MagicMock()
-        mock_chat.system_instruction = ""
+        mock_instance = MagicMock()
+        mock_instance.invoke = mock_invoke
+        # Make the pipe operator return a mock chain that can be invoked
+        def mock_pipe_op(other):
+            chain_mock = MagicMock()
+            chain_mock.invoke = mock_invoke
+            return chain_mock
+        mock_instance.__or__ = mock_pipe_op
+        mock_model_class.return_value = mock_instance
 
-        def mock_send_message(message):
-            response_mock = MagicMock()
-            system_instruction = mock_chat.system_instruction if hasattr(mock_chat, 'system_instruction') else ""
-            response_text = mock_gemini_response(message, system_instruction)
-            response_mock.text = response_text
-
-            # Return generator for streaming support
-            def response_generator():
-                yield response_mock
-
-            return response_generator()
-
-        mock_chat.send_message = mock_send_message
-        mock_client.chats.create = MagicMock(return_value=mock_chat)
-
-        yield mock_client
+        yield mock_instance
 
 
 @pytest.fixture

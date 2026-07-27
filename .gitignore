@@ -18,3 +18,4 @@ build/
 *~
 .streamlit/secrets.toml
 data/sessions.json
+SLIDES.md

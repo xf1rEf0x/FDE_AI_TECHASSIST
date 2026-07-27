@@ -12,7 +12,7 @@ Examples:
 Technical Focus
 - Agents
 - Tool Calling
-- LangGraph
+- LangChain
 - MCP Concepts
 - Multi-step Reasoning
 - Human-in-the-loop

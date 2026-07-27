@@ -6,7 +6,7 @@ from langchain_core.prompts import (
     SystemMessagePromptTemplate,
     HumanMessagePromptTemplate,
 )
-from langchain_huggingface import ChatHuggingFace
+from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -43,11 +43,15 @@ def create_langchain_model(temperature: float = 0.7) -> ChatHuggingFace:
     """
     api_key = get_huggingface_api_key()
 
-    model = ChatHuggingFace(
-        huggingface_api_key=api_key,
-        model_name="mistralai/Mistral-7B-Instruct-v0.1",  # ponytail: swap model name if HF inference endpoint changes
+    # Create HuggingFaceEndpoint first (the base LLM)
+    hf_llm = HuggingFaceEndpoint(
+        repo_id="mistralai/Mistral-7B-Instruct-v0.1",  # ponytail: swap model name if HF inference endpoint changes
+        huggingfacehub_api_token=api_key,
         temperature=temperature,
     )
+
+    # Wrap in ChatHuggingFace for chat-specific behavior
+    model = ChatHuggingFace(llm=hf_llm)
     return model
 
 
@@ -75,12 +79,11 @@ def create_conversation_chain(system_prompt: str, temperature: float = 0.7):
         temperature: Model temperature
 
     Returns:
-        LangChain LLMChain ready for invoke() calls
+        LCEL chain (prompt | model) ready for invoke() calls
     """
-    from langchain.chains import LLMChain
-
     model = create_langchain_model(temperature)
     prompt_template = build_prompt_template(system_prompt)
 
-    chain = LLMChain(llm=model, prompt=prompt_template)
+    # Use LCEL (pipe) composition instead of deprecated LLMChain
+    chain = prompt_template | model
     return chain
