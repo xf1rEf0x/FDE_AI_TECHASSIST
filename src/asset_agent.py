@@ -1,9 +1,11 @@
 """AI Agent for Employee Assets search using LangGraph."""
 
 import re
+from typing import Optional
+from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 from src.langchain_integration import create_langchain_model
-from src.asset_search_tool import search_employee_assets
+from src.asset_search_tool import search_employee_assets as _search_employee_assets
 
 
 def create_asset_search_agent(temperature: float = 0.7, user_name: str = None, user_id: str = None, is_admin: bool = False):
@@ -22,6 +24,32 @@ def create_asset_search_agent(temperature: float = 0.7, user_name: str = None, u
         LangGraph agent configured with asset search tool
     """
     model = create_langchain_model(temperature)
+
+    # Create a bounded tool that captures user_id and is_admin from closure
+    @tool
+    def search_employee_assets(query: str, asset_type: Optional[str] = None) -> str:
+        """Search for employee assets by name, serial number, or type.
+
+        This tool searches across employee assets in the system. You can:
+        - Search by employee name (e.g., "Alice Johnson")
+        - Search by serial number or license key (e.g., "C02XQ8NWLXJX")
+        - Filter by asset type (e.g., "Laptop", "Monitor", "Software License", "Printer")
+
+        Args:
+            query: Search query (employee name or serial number)
+            asset_type: Optional asset type to filter by
+
+        Returns:
+            Formatted string with search results
+        """
+        # Call the underlying search with user access control
+        return _search_employee_assets(
+            query=query,
+            asset_type=asset_type,
+            user_id=user_id,  # Captured from closure
+            is_admin=is_admin  # Captured from closure
+        )
+
     tools = [search_employee_assets]
 
     user_context = f"The current user's name is: {user_name}\n" if user_name else ""
