@@ -1,7 +1,7 @@
 """Unified HelpDesk tab UI module with intelligent agent routing."""
 
 import streamlit as st
-from src.agents.helpdesk_agent import HelpDeskAgent
+from src.conversation import get_agent_instance
 from src.agents.software_agent import SoftwareRequestAgent
 from src.asset_agent import search_assets
 from src.intent_router import IntentRouter
@@ -30,7 +30,7 @@ def render_helpdesk_tab(user_email: str):
 
     # Initialize agents and router on first visit
     if "helpdesk_agent" not in st.session_state:
-        st.session_state.helpdesk_agent = HelpDeskAgent(user_email)
+        st.session_state.helpdesk_agent = get_agent_instance(user_email, "employee", temperature=0.0)
 
     if "software_agent" not in st.session_state:
         st.session_state.software_agent = SoftwareRequestAgent(user_email, is_admin=user_is_admin)
@@ -92,7 +92,7 @@ def render_helpdesk_tab(user_email: str):
             if intent_result["clarification"]:
                 response = intent_result["clarification"]
             elif intent_result["intent"] == "helpdesk":
-                response = st.session_state.helpdesk_agent.run(st.session_state.unified_helpdesk_messages[-1]["content"])
+                response = st.session_state.helpdesk_agent.invoke(st.session_state.unified_helpdesk_messages[-1]["content"])
             elif intent_result["intent"] == "software_request":
                 response = st.session_state.software_agent.run(st.session_state.unified_helpdesk_messages[-1]["content"])
             elif intent_result["intent"] == "asset_search":
