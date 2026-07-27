@@ -101,9 +101,6 @@ current_user = get_current_user()
 if current_user:
     st.session_state.role = current_user.get("role", "employee")
 
-if "template_selected" not in st.session_state:
-    st.session_state.template_selected = None
-
 if "current_session_id" not in st.session_state:
     st.session_state.current_session_id = None
 
@@ -200,7 +197,6 @@ with st.sidebar:
     # Clear conversation button
     if st.button("New Chat", use_container_width=True):
         st.session_state.messages = []
-        st.session_state.template_selected = None
         st.session_state.current_session_id = None
         info_box("Conversation cleared!", "success")
         st.rerun()
@@ -224,31 +220,9 @@ with tab_chat:
     for message in st.session_state.messages:
         message_container(message["content"], message["role"])
 
-    # Prompt templates (shown only when empty)
-    if not st.session_state.messages:
-        st.divider()
-        st.markdown("**Quick questions for your role:**")
-        templates = get_prompt_templates(st.session_state.role)
-        cols = st.columns(len(templates))
-        for idx, template in enumerate(templates):
-            with cols[idx]:
-                if action_card(
-                    title=template[:30] + "..." if len(template) > 30 else template,
-                    description=template[30:60] + "..." if len(template) > 60 else (template[30:] if len(template) > 30 else ""),
-                    icon="💬",
-                    key=f"template_{idx}_{template[:10]}"
-                ):
-                    st.session_state.template_selected = template
-                    st.rerun()
-        st.divider()
 
     # User input (pinned at bottom via native layout)
     user_input = st.chat_input("Ask me anything about IT support...")
-
-    # Handle template selection
-    if st.session_state.template_selected and not st.session_state.messages:
-        user_input = st.session_state.template_selected
-        st.session_state.template_selected = None
 
     if user_input:
         # Validate input
