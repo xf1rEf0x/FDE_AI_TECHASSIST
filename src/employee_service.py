@@ -1,6 +1,8 @@
 """Employee Service module for AI-powered IT support actions."""
 
 import streamlit as st
+from src.asset_agent import search_assets
+from src.auth import get_current_user, is_admin
 
 
 # ============================================================================
@@ -8,23 +10,88 @@ import streamlit as st
 # ============================================================================
 
 def render_employee_assets():
-    """Render Employee Assets service tab."""
+    """Render Employee Assets service tab with AI Agent-powered search."""
     st.subheader("🏢 Employee Assets")
-    st.markdown("Search for your assigned assets (laptops, monitors, software licenses, etc.)")
 
-    with st.form("search_asset_form"):
-        search_type = st.selectbox(
-            "Asset Type:",
-            ["All", "Laptop", "Monitor", "Software License", "Printer"],
-        )
-        search_query = st.text_input("Search by device name, serial number, or license key:")
+    # Get current user info
+    current_user = get_current_user()
+    if not current_user:
+        st.warning("Please login to view assets.")
+        return
 
-        submitted = st.form_submit_button("🔍 Search Assets", use_container_width=True)
-        if submitted:
-            if search_query.strip():
-                st.info("🔄 Searching assets... (implementation pending)")
-            else:
-                st.warning("Please enter a search query.")
+    user_id = current_user.get("employee_id")
+    user_admin = is_admin()
+
+    st.markdown("Search for your assigned assets using natural language. Ask about laptops, monitors, software licenses, printers, or anything else.")
+
+    # Initialize chat history for this session
+    if "asset_chat_history" not in st.session_state:
+        st.session_state.asset_chat_history = []
+
+    if "asset_search_temperature" not in st.session_state:
+        st.session_state.asset_search_temperature = 0.7
+
+    # Display chat history
+    st.markdown("### Asset Search Conversation")
+    for message in st.session_state.asset_chat_history:
+        role = message["role"]
+        content = message["content"]
+        with st.chat_message(role):
+            st.markdown(content)
+
+    # User input
+    user_query = st.chat_input("Ask about your assets (e.g., 'Show me my laptop', 'Find my Microsoft Office license')...")
+
+    if user_query:
+        # Add user message to history
+        st.session_state.asset_chat_history.append({
+            "role": "user",
+            "content": user_query
+        })
+
+        # Display user message
+        with st.chat_message("user"):
+            st.markdown(user_query)
+
+        # Get agent response
+        try:
+            with st.chat_message("assistant"):
+                message_placeholder = st.empty()
+                message_placeholder.markdown("🤔 *Searching assets...*")
+
+                # Call asset search agent with user_id and admin flag
+                response = search_assets(
+                    user_query,
+                    chat_history=st.session_state.asset_chat_history[:-1],
+                    temperature=st.session_state.asset_search_temperature,
+                    user_name=current_user.get("name"),
+                    user_id=user_id,  # NEW
+                    is_admin=user_admin  # NEW
+                )
+
+                message_placeholder.markdown(response)
+
+            # Add assistant message to history
+            st.session_state.asset_chat_history.append({
+                "role": "assistant",
+                "content": response
+            })
+
+        except Exception as e:
+            st.error(f"❌ Error searching assets: {str(e)}")
+
+    # Optional: User identification (for "me" queries)
+    with st.expander("👤 Your Info"):
+        st.markdown(f"**Name:** {current_user.get('name')}")
+        st.markdown(f"**Employee ID:** {user_id}")
+        st.markdown(f"**Role:** {current_user.get('role').capitalize()}")
+
+    # Sidebar controls
+    with st.sidebar:
+        if st.button("Clear Asset Search History"):
+            st.session_state.asset_chat_history = []
+            st.success("Asset search history cleared!")
+            st.rerun()
 
 
 # ============================================================================
