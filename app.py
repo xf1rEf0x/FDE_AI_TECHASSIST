@@ -208,6 +208,7 @@ tab_services = tab_objects[2] if len(tab_objects) > 2 else None
 with tab_chat:
     # Header with title and description
     header_card("Chat with IT Support", "Ask questions about IT issues, get instant help")
+    st.divider()
 
     # Chat history container (scrollable)
     for message in st.session_state.messages:
@@ -215,6 +216,7 @@ with tab_chat:
 
     # Prompt templates (shown only when empty)
     if not st.session_state.messages:
+        st.divider()
         st.markdown("**Quick questions for your role:**")
         templates = get_prompt_templates(st.session_state.role)
         cols = st.columns(len(templates))
@@ -228,6 +230,7 @@ with tab_chat:
                 ):
                     st.session_state.template_selected = template
                     st.rerun()
+        st.divider()
 
     # User input (pinned at bottom via native layout)
     user_input = st.chat_input("Ask me anything about IT support...")

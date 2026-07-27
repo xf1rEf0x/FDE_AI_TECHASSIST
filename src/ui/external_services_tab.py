@@ -12,6 +12,7 @@ def render_external_services_tab():
         "Cloud Services Status",
         "Real-time status of major cloud providers"
     )
+    st.divider()
 
     # Initialize MCP integration
     if "mcp_integration" not in st.session_state:
@@ -69,11 +70,13 @@ def render_external_services_tab():
                                     else:
                                         st.markdown(str(item))
                         else:
-                            st.write(status_items)
+                            st.markdown(str(status_items))
 
                         st.caption(f"Source: {result.get('source', 'N/A')}")
 
                 col_idx += 1
+
+    st.divider()
 
     # Info section with component
     with st.expander("ℹ️ How it works"):

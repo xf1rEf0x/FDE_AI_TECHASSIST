@@ -21,6 +21,7 @@ def render_helpdesk_tab(user_email: str):
     """
     # Header
     header_card("Help Desk", "Create tickets, request software, or check your assets")
+    st.divider()
 
     # Get current user for asset search
     current_user = get_current_user()
