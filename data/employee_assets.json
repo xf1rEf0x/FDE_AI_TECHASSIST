@@ -1,0 +1,172 @@
+{
+  "employees": [
+    {
+      "employee_id": "EMP001",
+      "name": "Alice Johnson",
+      "department": "Engineering",
+      "email": "alice.johnson@techassist.com",
+      "assets": [
+        {
+          "asset_id": "LAP-2024-001",
+          "type": "Laptop",
+          "model": "MacBook Pro 16\" (2023)",
+          "serial_number": "C02XQ8NWLXJX",
+          "os": "macOS Sonoma",
+          "purchase_date": "2023-03-15",
+          "warranty_end": "2026-03-15",
+          "status": "Active",
+          "assigned_date": "2023-03-20"
+        },
+        {
+          "asset_id": "MON-2024-001",
+          "type": "Monitor",
+          "model": "Dell U2724DE",
+          "serial_number": "Dell-MON-89123",
+          "size": "27 inches",
+          "resolution": "2560x1440",
+          "purchase_date": "2023-04-10",
+          "warranty_end": "2026-04-10",
+          "status": "Active",
+          "assigned_date": "2023-04-15"
+        },
+        {
+          "asset_id": "LIC-2024-001",
+          "type": "Software License",
+          "name": "JetBrains IntelliJ IDEA",
+          "license_key": "IJLU-123456-ABCDEF",
+          "license_type": "Individual Annual",
+          "purchase_date": "2024-01-01",
+          "expiry_date": "2025-01-01",
+          "status": "Active",
+          "assigned_date": "2024-01-05"
+        }
+      ]
+    },
+    {
+      "employee_id": "EMP002",
+      "name": "Bob Smith",
+      "department": "Marketing",
+      "email": "bob.smith@techassist.com",
+      "assets": [
+        {
+          "asset_id": "LAP-2024-002",
+          "type": "Laptop",
+          "model": "Dell XPS 15",
+          "serial_number": "DELL-XPS-45678",
+          "os": "Windows 11 Pro",
+          "purchase_date": "2022-11-20",
+          "warranty_end": "2025-11-20",
+          "status": "Active",
+          "assigned_date": "2022-11-25"
+        },
+        {
+          "asset_id": "MON-2024-002",
+          "type": "Monitor",
+          "model": "LG 27GN950-B",
+          "serial_number": "LG-89456",
+          "size": "27 inches",
+          "resolution": "3840x2160",
+          "purchase_date": "2023-06-01",
+          "warranty_end": "2026-06-01",
+          "status": "Active",
+          "assigned_date": "2023-06-10"
+        },
+        {
+          "asset_id": "PRT-2024-001",
+          "type": "Printer",
+          "model": "HP LaserJet Pro MFP M428fdw",
+          "serial_number": "HP-PRINTER-89789",
+          "network_address": "192.168.1.50",
+          "purchase_date": "2023-02-14",
+          "warranty_end": "2025-02-14",
+          "status": "Active",
+          "assigned_date": "2023-02-20"
+        }
+      ]
+    },
+    {
+      "employee_id": "EMP003",
+      "name": "Carol Davis",
+      "department": "Finance",
+      "email": "carol.davis@techassist.com",
+      "assets": [
+        {
+          "asset_id": "LAP-2024-003",
+          "type": "Laptop",
+          "model": "ThinkPad X1 Carbon",
+          "serial_number": "THINKPAD-X1-12345",
+          "os": "Windows 11 Pro",
+          "purchase_date": "2024-01-10",
+          "warranty_end": "2027-01-10",
+          "status": "Active",
+          "assigned_date": "2024-01-15"
+        },
+        {
+          "asset_id": "LIC-2024-002",
+          "type": "Software License",
+          "name": "Microsoft Office 365",
+          "license_key": "OFF365-98765-XYZ123",
+          "license_type": "Enterprise",
+          "purchase_date": "2024-01-01",
+          "expiry_date": "2025-01-01",
+          "status": "Active",
+          "assigned_date": "2024-01-10"
+        },
+        {
+          "asset_id": "LIC-2024-003",
+          "type": "Software License",
+          "name": "Adobe Creative Suite",
+          "license_key": "ADOBE-CC-456789",
+          "license_type": "Enterprise",
+          "purchase_date": "2023-12-01",
+          "expiry_date": "2024-12-01",
+          "status": "Active",
+          "assigned_date": "2023-12-10"
+        }
+      ]
+    },
+    {
+      "employee_id": "EMP004",
+      "name": "David Wilson",
+      "department": "IT Operations",
+      "email": "david.wilson@techassist.com",
+      "assets": [
+        {
+          "asset_id": "LAP-2024-004",
+          "type": "Laptop",
+          "model": "MacBook Air M2",
+          "serial_number": "MAC-M2-56789",
+          "os": "macOS Ventura",
+          "purchase_date": "2023-07-01",
+          "warranty_end": "2026-07-01",
+          "status": "Active",
+          "assigned_date": "2023-07-10"
+        },
+        {
+          "asset_id": "MON-2024-003",
+          "type": "Monitor",
+          "model": "Apple Studio Display",
+          "serial_number": "APPLE-STUDIO-11122",
+          "size": "27 inches",
+          "resolution": "5120x2880",
+          "purchase_date": "2023-08-01",
+          "warranty_end": "2026-08-01",
+          "status": "Active",
+          "assigned_date": "2023-08-15"
+        },
+        {
+          "asset_id": "MON-2024-004",
+          "type": "Monitor",
+          "model": "Apple Studio Display",
+          "serial_number": "APPLE-STUDIO-11123",
+          "size": "27 inches",
+          "resolution": "5120x2880",
+          "purchase_date": "2023-08-01",
+          "warranty_end": "2026-08-01",
+          "status": "Active",
+          "assigned_date": "2023-08-15"
+        }
+      ]
+    }
+  ]
+}

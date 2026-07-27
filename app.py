@@ -74,9 +74,10 @@ st.markdown("*Your friendly IT support assistant for TechAssist Solutions*")
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-if "role" not in st.session_state:
-    st.session_state.role = "employee"
-
+# Role is now bound to logged-in user's role, not settable
+current_user = get_current_user()
+if current_user:
+    st.session_state.role = current_user.get("role", "employee")
 
 if "template_selected" not in st.session_state:
     st.session_state.template_selected = None
@@ -100,20 +101,6 @@ with st.sidebar:
             logout()
 
     st.divider()
-
-    available_roles = get_available_roles()
-    selected_role = st.selectbox(
-        "Select your role:",
-        available_roles,
-        index=available_roles.index(st.session_state.role),
-        help="Choose your role to get personalized IT support"
-    )
-
-    # Update role and clear history if changed
-    if selected_role != st.session_state.role:
-        st.session_state.role = selected_role
-        st.session_state.messages = []
-        st.info(f"✓ Switched to {selected_role} role. Chat history cleared.")
 
     st.info("🤖 Using HuggingFace model: DeepSeek-R1")
 
