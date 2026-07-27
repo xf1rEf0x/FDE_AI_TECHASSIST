@@ -7,6 +7,7 @@ from src.tools.ticket_tools import (
     create_ticket_tool,
     check_ticket_status_tool,
     list_tickets_tool,
+    close_ticket_tool,
 )
 
 
@@ -18,7 +19,7 @@ class HelpDeskAgent:
     Uses tool calling to invoke the three ticket tools.
     """
 
-    def __init__(self, user_email: str, model_name: str = "gemini-2.0-flash"):
+    def __init__(self, user_email: str, model_name: str = "gemini-3.5-flash-lite"):
         """
         Initialize HelpDeskAgent.
 
@@ -50,17 +51,24 @@ class HelpDeskAgent:
             """List all tickets owned by the current user."""
             return list_tickets_tool(self.user_email)
 
-        self.tools = [create_ticket, check_ticket_status, list_tickets]
+        @tool
+        def close_ticket(ticket_id: str) -> dict:
+            """Close a support ticket owned by the current user."""
+            return close_ticket_tool(self.user_email, ticket_id)
+
+        self.tools = [create_ticket, check_ticket_status, list_tickets, close_ticket]
 
         # System prompt with access control guard
         system_prompt = f"""You are a helpful IT Support Help Desk Agent. Your role is to:
 1. Creating support tickets for IT issues
 2. Checking the status of existing tickets
 3. Listing all tickets for the user
+4. Closing resolved tickets
 
 IMPORTANT: You are assisting user with email: {user_email}
 - Users can ONLY create tickets for themselves
 - Users can ONLY check tickets they own
+- Users can ONLY close tickets they own
 - All ticket operations are scoped to this user's email automatically
 
 When a user asks to create a ticket:
@@ -74,6 +82,10 @@ When a user asks to check a ticket status:
 When a user asks to list their tickets:
 - Use the list_tickets tool
 - Show a summary of all their tickets
+
+When a user asks to close a ticket:
+- Use the close_ticket tool with the ticket ID
+- Confirm the ticket was closed successfully
 
 Always be helpful and professional. Only refer to tickets that belong to this user."""
 
@@ -102,7 +114,15 @@ Always be helpful and professional. Only refer to tickets that belong to this us
                 last_msg = messages[-1]
                 # last_msg is a tuple (role, content) or an AIMessage
                 if isinstance(last_msg, tuple):
-                    return last_msg[1]
+                    content = last_msg[1]
                 else:
-                    return last_msg.content
+                    content = last_msg.content
+
+                # Gemini returns content as JSON list with text field; extract plain text
+                if isinstance(content, list) and len(content) > 0:
+                    item = content[0]
+                    if isinstance(item, dict) and "text" in item:
+                        return item["text"]
+
+                return content if isinstance(content, str) else str(content)
         return ""

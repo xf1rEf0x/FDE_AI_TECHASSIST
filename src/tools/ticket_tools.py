@@ -87,3 +87,35 @@ def list_tickets_tool(user_email: str) -> dict:
             for t in tickets
         ],
     }
+
+
+def close_ticket_tool(user_email: str, ticket_id: str) -> dict:
+    """
+    Close a ticket (owner only).
+
+    Args:
+        user_email: Email of the user closing the ticket
+        ticket_id: ID of the ticket to close
+
+    Returns:
+        dict with keys:
+            - status: "success" or "error"
+            - ticket: (if success) dict with ticket_id, title, status
+            - message: (if error) error message
+    """
+    ticket = ticket_store.update_ticket_status(ticket_id, user_email, "closed")
+    if ticket is None:
+        return {
+            "status": "error",
+            "message": "Ticket not found or access denied.",
+        }
+
+    return {
+        "status": "success",
+        "ticket": {
+            "ticket_id": ticket.id,
+            "title": ticket.title,
+            "status": ticket.status,
+        },
+        "message": f"Ticket {ticket_id} closed successfully.",
+    }
