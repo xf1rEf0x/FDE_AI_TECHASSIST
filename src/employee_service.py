@@ -66,7 +66,8 @@ def render_employee_assets():
                     temperature=st.session_state.asset_search_temperature,
                     user_name=current_user.get("name"),
                     user_id=user_id,  # NEW
-                    is_admin=user_admin  # NEW
+                    is_admin=user_admin,  # NEW
+                    provider=st.session_state.provider.lower()  # Pass selected provider
                 )
 
                 message_placeholder.markdown(response)

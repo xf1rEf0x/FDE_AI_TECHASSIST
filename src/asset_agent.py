@@ -5,10 +5,14 @@ from typing import Optional
 from langchain_core.tools import tool
 from langgraph.prebuilt import create_react_agent
 from src.langchain_integration import create_langchain_model
-from src.asset_search_tool import search_employee_assets as _search_employee_assets
+from src.asset_search_tool import (
+    search_assets_by_employee,
+    search_assets_by_serial,
+    search_assets_by_type,
+)
 
 
-def create_asset_search_agent(temperature: float = 0.7, user_name: str = None, user_id: str = None, is_admin: bool = False):
+def create_asset_search_agent(temperature: float = 0.7, user_name: str = None, user_id: str = None, is_admin: bool = False, provider: str = "huggingface"):
     """Create an AI agent for searching employee assets.
 
     The agent helps users find their assigned assets by answering natural language
@@ -19,11 +23,12 @@ def create_asset_search_agent(temperature: float = 0.7, user_name: str = None, u
         user_name: Optional current user's name for personalized search
         user_id: Optional current user's employee ID for access control
         is_admin: Whether current user is admin (bypasses access control)
+        provider: "huggingface" or "gemini"
 
     Returns:
         LangGraph agent configured with asset search tool
     """
-    model = create_langchain_model(temperature)
+    model = create_langchain_model(temperature, provider)
 
     # Create a bounded tool that captures user_id and is_admin from closure
     @tool
@@ -42,13 +47,65 @@ def create_asset_search_agent(temperature: float = 0.7, user_name: str = None, u
         Returns:
             Formatted string with search results
         """
-        # Call the underlying search with user access control
-        return _search_employee_assets(
-            query=query,
-            asset_type=asset_type,
-            user_id=user_id,  # Captured from closure
-            is_admin=is_admin  # Captured from closure
-        )
+        results = []
+
+        # Try searching by employee name first
+        results.extend(search_assets_by_employee(query, asset_type, user_id=user_id, is_admin=is_admin))
+
+        # If no results, try searching by serial number
+        if not results:
+            results.extend(search_assets_by_serial(query, user_id=user_id, is_admin=is_admin))
+
+        # If still no results, try searching by type only (if asset_type provided)
+        if not results and asset_type:
+            results.extend(search_assets_by_type(asset_type, user_id=user_id, is_admin=is_admin))
+
+        if not results:
+            return f"No assets found matching query: '{query}' {f'with type: {asset_type}' if asset_type else ''}"
+
+        # Format results for display
+        formatted_results = []
+        seen_employees = set()
+
+        for asset in results:
+            emp_key = asset["employee_id"]
+
+            # Add employee header once per employee
+            if emp_key not in seen_employees:
+                formatted_results.append(f"\n**Employee:** {asset['employee_name']} ({asset['employee_id']})")
+                formatted_results.append(f"**Department:** {asset['department']}")
+                formatted_results.append(f"**Email:** {asset['email']}")
+                formatted_results.append("---")
+                seen_employees.add(emp_key)
+
+            # Add asset details
+            asset_type = asset.get("type", "Unknown")
+            formatted_results.append(f"\n**Asset Type:** {asset_type}")
+            formatted_results.append(f"**Asset ID:** {asset['asset_id']}")
+
+            # Type-specific details
+            if asset_type == "Laptop":
+                formatted_results.append(f"**Model:** {asset.get('model')}")
+                formatted_results.append(f"**Serial Number:** {asset.get('serial_number')}")
+                formatted_results.append(f"**OS:** {asset.get('os')}")
+            elif asset_type == "Monitor":
+                formatted_results.append(f"**Model:** {asset.get('model')}")
+                formatted_results.append(f"**Serial Number:** {asset.get('serial_number')}")
+                formatted_results.append(f"**Size/Resolution:** {asset.get('size')} @ {asset.get('resolution')}")
+            elif asset_type == "Printer":
+                formatted_results.append(f"**Model:** {asset.get('model')}")
+                formatted_results.append(f"**Serial Number:** {asset.get('serial_number')}")
+                formatted_results.append(f"**Network Address:** {asset.get('network_address')}")
+            elif asset_type == "Software License":
+                formatted_results.append(f"**Software:** {asset.get('name')}")
+                formatted_results.append(f"**License Key:** {asset.get('license_key')}")
+                formatted_results.append(f"**License Type:** {asset.get('license_type')}")
+
+            formatted_results.append(f"**Purchase Date:** {asset.get('purchase_date')}")
+            formatted_results.append(f"**Warranty/Expiry:** {asset.get('warranty_end') or asset.get('expiry_date')}")
+            formatted_results.append(f"**Status:** {asset.get('status')}")
+
+        return "\n".join(formatted_results)
 
     tools = [search_employee_assets]
 
@@ -106,7 +163,7 @@ def _clean_response(text: str) -> str:
     return text
 
 
-def search_assets(query: str, chat_history: list = None, temperature: float = 0.7, user_name: str = None, user_id: str = None, is_admin: bool = False) -> str:
+def search_assets(query: str, chat_history: list = None, temperature: float = 0.7, user_name: str = None, user_id: str = None, is_admin: bool = False, provider: str = "huggingface") -> str:
     """Search for employee assets using the AI agent.
 
     Args:
@@ -116,6 +173,7 @@ def search_assets(query: str, chat_history: list = None, temperature: float = 0.
         user_name: Optional current user's name for personalized search
         user_id: Optional current user's employee ID for access control
         is_admin: Whether current user is admin (bypasses access control)
+        provider: "huggingface" or "gemini"
 
     Returns:
         Agent response with search results (clean output without reasoning)
@@ -123,7 +181,7 @@ def search_assets(query: str, chat_history: list = None, temperature: float = 0.
     if chat_history is None:
         chat_history = []
 
-    agent = create_asset_search_agent(temperature, user_name=user_name, user_id=user_id, is_admin=is_admin)
+    agent = create_asset_search_agent(temperature, user_name=user_name, user_id=user_id, is_admin=is_admin, provider=provider)
 
     response = agent.invoke({
         "messages": [{"role": "user", "content": query}],
