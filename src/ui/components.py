@@ -188,6 +188,64 @@ def message_container(content: str, role: str, timestamp: Optional[str] = None) 
         )
 
 
+def info_box(message: str, severity: str, dismissible: bool = False) -> None:
+    """
+    Display a color-coded alert box with severity indicator and optional dismiss button.
+
+    Uses native Streamlit alert functions (st.info, st.success, st.warning, st.error)
+    with emoji prefixes for visual clarity.
+
+    Args:
+        message: Alert message text
+        severity: One of "info", "success", "warning", "error"
+        dismissible: If True, note that dismissal is not natively supported in Streamlit
+                    (component is for documentation purposes; actual dismissal would require
+                    st.session_state management at the caller level)
+
+    Returns:
+        None (renders via Streamlit)
+    """
+    emoji_map = {
+        "info": "ℹ️",
+        "success": "✅",
+        "warning": "⚠️",
+        "error": "❌",
+    }
+    emoji = emoji_map.get(severity, "")
+    display_message = f"{emoji} {message}" if emoji else message
+
+    if severity == "info":
+        st.info(display_message)
+    elif severity == "success":
+        st.success(display_message)
+    elif severity == "warning":
+        st.warning(display_message)
+    elif severity == "error":
+        st.error(display_message)
+    else:
+        st.info(display_message)
+
+
+def sidebar_section(title: str, content_func: callable, expanded: bool = True) -> None:
+    """
+    Render a consistently-styled sidebar section with title and divider.
+
+    Parameters:
+        title: Section title to display in the sidebar
+        content_func: Callable that renders the section's content.
+                     Will be called within the sidebar context.
+        expanded: If True, section header is displayed; Streamlit does not have
+                 native collapsible sidebar sections, so this is informational.
+
+    Returns:
+        None (renders via Streamlit sidebar)
+    """
+    with st.sidebar:
+        st.markdown(f"**{title}**")
+        content_func()
+        st.divider()
+
+
 def demo_components():
     """
     Demo all components for manual testing.
@@ -248,61 +306,3 @@ def demo_components():
 if __name__ == "__main__":
     st.set_page_config(page_title="Component Demo", layout="wide")
     demo_components()
-
-
-def info_box(message: str, severity: str, dismissible: bool = False) -> None:
-    """
-    Display a color-coded alert box with severity indicator and optional dismiss button.
-
-    Uses native Streamlit alert functions (st.info, st.success, st.warning, st.error)
-    with emoji prefixes for visual clarity.
-
-    Args:
-        message: Alert message text
-        severity: One of "info", "success", "warning", "error"
-        dismissible: If True, note that dismissal is not natively supported in Streamlit
-                    (component is for documentation purposes; actual dismissal would require
-                    st.session_state management at the caller level)
-
-    Returns:
-        None (renders via Streamlit)
-    """
-    emoji_map = {
-        "info": "ℹ️",
-        "success": "✅",
-        "warning": "⚠️",
-        "error": "❌",
-    }
-    emoji = emoji_map.get(severity, "")
-    display_message = f"{emoji} {message}" if emoji else message
-
-    if severity == "info":
-        st.info(display_message)
-    elif severity == "success":
-        st.success(display_message)
-    elif severity == "warning":
-        st.warning(display_message)
-    elif severity == "error":
-        st.error(display_message)
-    else:
-        st.info(display_message)
-
-
-def sidebar_section(title: str, content_func: callable, expanded: bool = True) -> None:
-    """
-    Render a consistently-styled sidebar section with title and divider.
-
-    Parameters:
-        title: Section title to display in the sidebar
-        content_func: Callable that renders the section's content.
-                     Will be called within the sidebar context.
-        expanded: If True, section header is displayed; Streamlit does not have
-                 native collapsible sidebar sections, so this is informational.
-
-    Returns:
-        None (renders via Streamlit sidebar)
-    """
-    with st.sidebar:
-        st.markdown(f"**{title}**")
-        content_func()
-        st.divider()
