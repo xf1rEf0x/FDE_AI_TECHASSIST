@@ -23,6 +23,8 @@ from src.ui.components import (
     metric_tile,
     action_card,
     message_container,
+    info_box,
+    sidebar_section,
 )
 
 
@@ -211,3 +213,120 @@ def test_message_container_system_message(mock_markdown):
     mock_markdown.assert_called_once()
     call_args = mock_markdown.call_args
     assert "center" in str(call_args)  # centered
+
+
+def test_info_box_signature():
+    """Test info_box has correct signature."""
+    import inspect
+    sig = inspect.signature(info_box)
+    params = list(sig.parameters.keys())
+    assert "message" in params
+    assert "severity" in params
+    assert "dismissible" in params
+    # Verify return type is None
+    assert sig.return_annotation is None or sig.return_annotation == type(None)
+
+
+def test_info_box_dismissible_default():
+    """Test info_box dismissible parameter default."""
+    import inspect
+    sig = inspect.signature(info_box)
+    assert sig.parameters["dismissible"].default is False
+
+
+@patch("streamlit.info")
+def test_info_box_info_severity(mock_info):
+    """Test info_box renders info severity correctly."""
+    info_box("This is info", "info")
+    mock_info.assert_called_once()
+    call_args = str(mock_info.call_args)
+    assert "ℹ️" in call_args
+
+
+@patch("streamlit.success")
+def test_info_box_success_severity(mock_success):
+    """Test info_box renders success severity correctly."""
+    info_box("This is success", "success")
+    mock_success.assert_called_once()
+    call_args = str(mock_success.call_args)
+    assert "✅" in call_args
+
+
+@patch("streamlit.warning")
+def test_info_box_warning_severity(mock_warning):
+    """Test info_box renders warning severity correctly."""
+    info_box("This is warning", "warning")
+    mock_warning.assert_called_once()
+    call_args = str(mock_warning.call_args)
+    assert "⚠️" in call_args
+
+
+@patch("streamlit.error")
+def test_info_box_error_severity(mock_error):
+    """Test info_box renders error severity correctly."""
+    info_box("This is error", "error")
+    mock_error.assert_called_once()
+    call_args = str(mock_error.call_args)
+    assert "❌" in call_args
+
+
+@patch("streamlit.info")
+def test_info_box_unknown_severity_defaults_to_info(mock_info):
+    """Test info_box defaults to info for unknown severity."""
+    info_box("Unknown severity message", "unknown")
+    mock_info.assert_called_once()
+
+
+def test_sidebar_section_signature():
+    """Test sidebar_section has correct signature."""
+    import inspect
+    sig = inspect.signature(sidebar_section)
+    params = list(sig.parameters.keys())
+    assert "title" in params
+    assert "content_func" in params
+    assert "expanded" in params
+    # Verify return type is None
+    assert sig.return_annotation is None or sig.return_annotation == type(None)
+
+
+def test_sidebar_section_expanded_default():
+    """Test sidebar_section expanded parameter default."""
+    import inspect
+    sig = inspect.signature(sidebar_section)
+    assert sig.parameters["expanded"].default is True
+
+
+@patch("streamlit.sidebar")
+@patch("streamlit.markdown")
+@patch("streamlit.divider")
+def test_sidebar_section_renders(mock_divider, mock_markdown, mock_sidebar):
+    """Test sidebar_section calls rendering functions."""
+    # Mock sidebar context manager
+    mock_sidebar.__enter__ = MagicMock(return_value=None)
+    mock_sidebar.__exit__ = MagicMock(return_value=False)
+    
+    def mock_content():
+        pass
+    
+    sidebar_section("Test Section", mock_content, expanded=True)
+    
+    # Verify markdown was called for title
+    assert mock_markdown.call_count >= 1
+    # Verify divider was called
+    assert mock_divider.call_count >= 1
+
+
+@patch("streamlit.sidebar")
+@patch("streamlit.markdown")
+@patch("streamlit.divider")
+def test_sidebar_section_calls_content_func(mock_divider, mock_markdown, mock_sidebar):
+    """Test sidebar_section calls the content function."""
+    mock_sidebar.__enter__ = MagicMock(return_value=None)
+    mock_sidebar.__exit__ = MagicMock(return_value=False)
+    
+    mock_content = MagicMock()
+    
+    sidebar_section("Test Section", mock_content)
+    
+    # Verify content_func was called
+    mock_content.assert_called_once()
