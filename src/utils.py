@@ -17,10 +17,7 @@ def format_message(role: str, content: str) -> dict:
     if not content or not content.strip():
         raise ValueError("Message content cannot be empty")
 
-    return {
-        "role": role,
-        "content": content.strip()
-    }
+    return {"role": role, "content": content.strip()}
 
 
 def get_recent_messages(history: list[dict], window: int = 10) -> list[dict]:

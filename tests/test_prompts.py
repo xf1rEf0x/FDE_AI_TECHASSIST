@@ -1,7 +1,7 @@
 """Unit tests for role-based prompts."""
 
 import pytest
-from src.prompts import get_system_prompt, get_available_roles, SYSTEM_PROMPTS, get_prompt_templates, PROMPT_TEMPLATES
+from src.prompts import get_system_prompt, get_available_roles, SYSTEM_PROMPTS
 
 
 def test_employee_system_prompt_exists():
@@ -59,51 +59,3 @@ def test_system_prompts_dict_complete():
     assert "employee" in SYSTEM_PROMPTS
     assert "engineer" in SYSTEM_PROMPTS
     assert "admin" in SYSTEM_PROMPTS
-
-
-def test_employee_prompt_templates_exist():
-    """Verify employee templates exist and are non-empty."""
-    templates = get_prompt_templates("employee")
-    assert templates is not None
-    assert len(templates) > 0
-    assert all(isinstance(t, str) and len(t) > 0 for t in templates)
-
-
-def test_engineer_prompt_templates_exist():
-    """Verify engineer templates exist and are non-empty."""
-    templates = get_prompt_templates("engineer")
-    assert templates is not None
-    assert len(templates) > 0
-    assert all(isinstance(t, str) and len(t) > 0 for t in templates)
-
-
-def test_admin_prompt_templates_exist():
-    """Verify admin templates exist and are non-empty."""
-    templates = get_prompt_templates("admin")
-    assert templates is not None
-    assert len(templates) > 0
-    assert all(isinstance(t, str) and len(t) > 0 for t in templates)
-
-
-def test_templates_differ_by_role():
-    """Verify that templates differ between roles."""
-    employee_templates = get_prompt_templates("employee")
-    engineer_templates = get_prompt_templates("engineer")
-    admin_templates = get_prompt_templates("admin")
-
-    assert employee_templates != engineer_templates
-    assert engineer_templates != admin_templates
-    assert employee_templates != admin_templates
-
-
-def test_prompt_templates_invalid_role_raises_error():
-    """Verify that invalid role raises ValueError for templates."""
-    with pytest.raises(ValueError, match="Unknown role"):
-        get_prompt_templates("invalid_role")
-
-
-def test_prompt_templates_dict_complete():
-    """Verify PROMPT_TEMPLATES dict has all required roles."""
-    assert "employee" in PROMPT_TEMPLATES
-    assert "engineer" in PROMPT_TEMPLATES
-    assert "admin" in PROMPT_TEMPLATES

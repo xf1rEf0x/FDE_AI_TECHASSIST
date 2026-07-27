@@ -25,6 +25,12 @@ USERS = {
         "name": "David Wilson",
         "role": "employee"
     },
+    "engineer@techassist.com": {
+        "password": "engineer123",
+        "employee_id": "ENG001",
+        "name": "Engineer User",
+        "role": "engineer"
+    },
     "admin@techassist.com": {
         "password": "admin123",
         "employee_id": None,

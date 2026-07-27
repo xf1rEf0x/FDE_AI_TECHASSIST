@@ -43,24 +43,6 @@ def _generate_temporary_password(length: int = 12) -> str:
     return "".join(secrets.choice(chars) for _ in range(length))
 
 
-def _update_user_password(user_email: str, new_password: str) -> bool:
-    """
-    Update user password in auth_config.py.
-
-    Args:
-        user_email: Email of the user
-        new_password: New password to set
-
-    Returns:
-        True if successful, False if user not found
-    """
-    if user_email not in USERS:
-        return False
-
-    USERS[user_email]["password"] = new_password
-    return True
-
-
 def reset_password_tool(user_email: str) -> dict:
     """
     Reset a user's password and return temporary password.
@@ -81,9 +63,7 @@ def reset_password_tool(user_email: str) -> dict:
         }
 
     new_password = _generate_temporary_password()
-
-    # Update actual user password in auth_config
-    _update_user_password(user_email, new_password)
+    USERS[user_email]["password"] = new_password
 
     # Log the reset for audit trail
     log = _load_password_log()

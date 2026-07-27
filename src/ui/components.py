@@ -151,44 +151,41 @@ def message_container(content: str, role: str, timestamp: Optional[str] = None) 
         role: One of "user", "assistant", "system"
         timestamp: Optional timestamp string
     """
+    import html
+    escaped_content = html.escape(content)
+
     if role == "user":
-        # User messages: right-aligned with light blue background
-        st.markdown(
+        st.html(
             f"""
             <div style='display: flex; justify-content: flex-end; margin: 12px 0;'>
                 <div style='background-color: {COLOR_USER_BG}; border-radius: 8px; padding: 12px 16px; max-width: 70%; text-align: left;'>
-                    <div style='color: #1f2937; font-size: 0.95em;'>{content}</div>
+                    <div style='color: #1f2937; font-size: 0.95em;'>{escaped_content}</div>
                     {f"<div style='font-size: 0.8em; color: #6b7280; margin-top: 6px;'>{timestamp}</div>" if timestamp else ""}
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
+            """
         )
     elif role == "assistant":
-        # Assistant messages: left-aligned with neutral background and primary border
-        st.markdown(
+        st.html(
             f"""
             <div style='display: flex; justify-content: flex-start; margin: 12px 0;'>
                 <div style='background-color: white; border-left: 4px solid {COLOR_PRIMARY}; border-radius: 4px; padding: 12px 16px; max-width: 70%;'>
-                    <div style='color: #1f2937; font-size: 0.95em;'>{content}</div>
+                    <div style='color: #1f2937; font-size: 0.95em;'>{escaped_content}</div>
                     {f"<div style='font-size: 0.8em; color: #6b7280; margin-top: 6px;'>{timestamp}</div>" if timestamp else ""}
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
+            """
         )
-    else:  # system
-        # System messages: centered with neutral styling
-        st.markdown(
+    else:
+        st.html(
             f"""
             <div style='display: flex; justify-content: center; margin: 12px 0;'>
                 <div style='background-color: {COLOR_SURFACE}; border-radius: 4px; padding: 12px 16px; max-width: 80%; text-align: center;'>
-                    <div style='color: {COLOR_NEUTRAL}; font-size: 0.9em;'>{content}</div>
+                    <div style='color: {COLOR_NEUTRAL}; font-size: 0.9em;'>{escaped_content}</div>
                     {f"<div style='font-size: 0.8em; color: #999999; margin-top: 6px;'>{timestamp}</div>" if timestamp else ""}
                 </div>
             </div>
-            """,
-            unsafe_allow_html=True
+            """
         )
 
 
@@ -230,83 +227,3 @@ def info_box(message: str, severity: str, dismissible: bool = False) -> None:
         st.info(display_message)
 
 
-def sidebar_section(title: str, content_func: callable, expanded: bool = True) -> None:
-    """
-    Render a consistently-styled sidebar section with title and divider.
-
-    Parameters:
-        title: Section title to display in the sidebar
-        content_func: Callable that renders the section's content.
-                     Will be called within the sidebar context.
-        expanded: If True, section header is displayed; Streamlit does not have
-                 native collapsible sidebar sections, so this is informational.
-
-    Returns:
-        None (renders via Streamlit sidebar)
-    """
-    with st.sidebar:
-        st.markdown(f"**{title}**")
-        content_func()
-        st.divider()
-
-
-def demo_components():
-    """
-    Demo all components for manual testing.
-    Run: streamlit run src/ui/components.py
-    """
-    st.title("🎨 TechAssist UI Component Demo")
-
-    # Demo header_card
-    st.subheader("header_card")
-    header_card("Section Title", "Optional description text")
-
-    # Demo status_badge
-    st.subheader("status_badge")
-    for status in ["operational", "degraded", "down", "pending", "completed"]:
-        st.write(status_badge(f"Service {status.title()}", status))
-
-    # Demo metric_tile
-    st.subheader("metric_tile")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        metric_tile("Active Sessions", "12", "💬")
-    with col2:
-        metric_tile("Pending Tickets", "5", "🎫")
-    with col3:
-        metric_tile("Admin Users", "3", "👤")
-
-    # Demo action_card
-    st.subheader("action_card")
-    col1, col2, col3 = st.columns(3)
-    with col1:
-        action_card("Create Ticket", "Report an issue", "📋", "demo_action_1")
-    with col2:
-        action_card("Request Software", "Install software", "💾", "demo_action_2")
-    with col3:
-        action_card("Check Assets", "View your devices", "🖥️", "demo_action_3")
-
-    # Demo message_container
-    st.subheader("message_container")
-    message_container("Hi, can you help me reset my password?", "user")
-    message_container("Of course! I can help you reset your password. Let me gather some information first.", "assistant")
-
-    # Demo form_group
-    st.subheader("form_group")
-    form_group("Username", "text", help_text="Enter your username", key="demo_username")
-    form_group("Password", "password", help_text="Enter your password", key="demo_password")
-
-    # Demo info_box
-    st.subheader("info_box")
-    col1, col2 = st.columns(2)
-    with col1:
-        info_box("This is an info message", "info")
-        info_box("This is a success message", "success")
-    with col2:
-        info_box("This is a warning message", "warning")
-        info_box("This is an error message", "error")
-
-
-if __name__ == "__main__":
-    st.set_page_config(page_title="Component Demo", layout="wide")
-    demo_components()

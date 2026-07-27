@@ -4,10 +4,12 @@ import warnings
 warnings.filterwarnings("ignore", module="transformers.*")
 
 import os
+from dotenv import load_dotenv
 import streamlit as st
+
+load_dotenv()
 from src.conversation import get_response, get_response_stream
-from src.prompts import get_available_roles, get_system_prompt, get_prompt_templates
-from src.utils import format_message
+from src.prompts import get_available_roles, get_system_prompt
 from src.sessions import (
     create_session,
     get_session,
@@ -17,7 +19,7 @@ from src.sessions import (
 )
 from src.ui.helpdesk_tab import render_helpdesk_tab
 from src.ui.external_services_tab import render_external_services_tab
-from src.ui.components import form_group, info_box, status_badge, sidebar_section, header_card, message_container, action_card
+from src.ui.components import form_group, info_box, status_badge, header_card, message_container, action_card
 from src.auth import login, logout, get_current_user, is_admin
 
 # ============================================================================

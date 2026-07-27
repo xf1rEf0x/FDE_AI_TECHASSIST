@@ -62,12 +62,8 @@ def render_helpdesk_tab(user_email: str):
         message_container(message["content"], message["role"])
 
     # Chat input (pinned at bottom via native layout)
-    prefill_text = st.session_state.get("helpdesk_input_prefill", "")
-    user_input = st.chat_input(
-        "Ask about tickets, software requests, or your assets...",
-        value=prefill_text if prefill_text else None
-    )
-    if prefill_text:
+    user_input = st.chat_input("Ask about tickets, software requests, or your assets...")
+    if st.session_state.get("helpdesk_input_prefill"):
         del st.session_state.helpdesk_input_prefill
 
     if user_input:
@@ -80,35 +76,37 @@ def render_helpdesk_tab(user_email: str):
 
     # Get response after messages are shown
     if len(st.session_state.unified_helpdesk_messages) > 0 and st.session_state.unified_helpdesk_messages[-1]["role"] == "user":
+        # Show thinking placeholder in chat
+        message_container("🤔 Thinking...", "assistant")
+
         try:
-            with st.spinner("🤔 Processing..."):
-                # Detect intent
-                intent_result = st.session_state.intent_router.detect_intent(
+            # Detect intent
+            intent_result = st.session_state.intent_router.detect_intent(
+                st.session_state.unified_helpdesk_messages[-1]["content"],
+                st.session_state.unified_helpdesk_messages[:-1]
+            )
+
+            response = ""
+
+            # Route to appropriate agent
+            if intent_result["clarification"]:
+                response = intent_result["clarification"]
+            elif intent_result["intent"] == "helpdesk":
+                response = st.session_state.helpdesk_agent.run(st.session_state.unified_helpdesk_messages[-1]["content"])
+            elif intent_result["intent"] == "software_request":
+                response = st.session_state.software_agent.run(st.session_state.unified_helpdesk_messages[-1]["content"])
+            elif intent_result["intent"] == "asset_search":
+                response = search_assets(
                     st.session_state.unified_helpdesk_messages[-1]["content"],
-                    st.session_state.unified_helpdesk_messages[:-1]
+                    chat_history=st.session_state.unified_helpdesk_messages[:-1],
+                    temperature=0.7,
+                    user_name=current_user.get("name") if current_user else "User",
+                    user_id=user_id,
+                    is_admin=user_is_admin,
+                    provider=st.session_state.get("provider", "gemini").lower()
                 )
-
-                response = ""
-
-                # Route to appropriate agent
-                if intent_result["clarification"]:
-                    response = intent_result["clarification"]
-                elif intent_result["intent"] == "helpdesk":
-                    response = st.session_state.helpdesk_agent.run(st.session_state.unified_helpdesk_messages[-1]["content"])
-                elif intent_result["intent"] == "software_request":
-                    response = st.session_state.software_agent.run(st.session_state.unified_helpdesk_messages[-1]["content"])
-                elif intent_result["intent"] == "asset_search":
-                    response = search_assets(
-                        st.session_state.unified_helpdesk_messages[-1]["content"],
-                        chat_history=st.session_state.unified_helpdesk_messages[:-1],
-                        temperature=0.7,
-                        user_name=current_user.get("name") if current_user else "User",
-                        user_id=user_id,
-                        is_admin=user_is_admin,
-                        provider=st.session_state.get("provider", "gemini").lower()
-                    )
-                else:
-                    response = "I'm not sure how to help with that. Could you clarify if you need: (1) a support ticket, (2) software installation, or (3) information about your assets?"
+            else:
+                response = "I'm not sure how to help with that. Could you clarify if you need: (1) a support ticket, (2) software installation, or (3) information about your assets?"
 
             # Add assistant message to history
             st.session_state.unified_helpdesk_messages.append({

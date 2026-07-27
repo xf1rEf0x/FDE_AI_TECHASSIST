@@ -1,8 +1,10 @@
 [client]
 showErrorDetails = true
+toolbarMode = "minimal"
+runOnSave = true
 
 [logger]
 level = "warning"
 
-[client.toolbarMode]
-value = "minimal"
+[watcher]
+watchFileSystemEvents = false
