@@ -150,7 +150,11 @@ with st.sidebar:
             help="Lower = more focused/deterministic, Higher = more creative/random"
         )
 
-    sidebar_section("⚙️ Settings", render_settings)
+    # Settings section
+    with st.sidebar:
+        st.markdown("**⚙️ Settings**")
+        render_settings()
+        st.divider()
 
     # Show current role info
     with st.expander("ℹ️ About your role"):
@@ -187,7 +191,11 @@ with st.sidebar:
         else:
             st.caption("💬 Start a conversation to create a session")
 
-    sidebar_section("📋 Session History", render_session_history)
+    # Session history in sidebar
+    with st.sidebar:
+        st.markdown("**📋 Session History**")
+        render_session_history()
+        st.divider()
 
     # Clear conversation button
     if st.button("New Chat", use_container_width=True):
