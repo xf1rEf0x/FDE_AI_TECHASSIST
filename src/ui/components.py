@@ -142,7 +142,7 @@ def action_card(title: str, description: str, icon: str, key: str) -> bool:
     return st.button(button_text, key=key, use_container_width=True)
 
 
-def message_container(content: str, role: str, timestamp: Optional[str] = None) -> None:
+def message_container(content: str, role: str, timestamp: Optional[str] = None, metadata: Optional[dict] = None) -> None:
     """
     Render a single chat message with styling based on role.
 
@@ -150,11 +150,64 @@ def message_container(content: str, role: str, timestamp: Optional[str] = None) 
         content: Message text (markdown)
         role: One of "user", "assistant", "system"
         timestamp: Optional timestamp string
+        metadata: Optional dict with "agent" (str), "tools" (list), "mcp" (list),
+            "rag" (list), "model" (str), "provider" (str), and "tokens"
+            (dict with input_tokens/output_tokens/total_tokens) — only the
+            components actually used in this reply appear in the summary line,
+            with full details (including model/provider/token usage) in the
+            hover tooltip
     """
     if role == "user":
         st.chat_message("user").markdown(content)
     elif role == "assistant":
-        st.chat_message("assistant").markdown(content)
+        with st.chat_message("assistant"):
+            st.markdown(content)
+            if metadata:
+                labels = []
+                tips = []
+
+                agent = metadata.get("agent")
+                if agent:
+                    labels.append("Agent")
+                    tips.append(f"Agent: {agent}")
+
+                tools = metadata.get("tools") or []
+                if tools:
+                    labels.append("Tools")
+                    tips.append(f"Tools: {', '.join(tools)}")
+
+                mcp = metadata.get("mcp") or []
+                if mcp:
+                    labels.append("MCP")
+                    tips.append(f"MCP: {', '.join(mcp)}")
+
+                rag = metadata.get("rag") or []
+                if rag:
+                    labels.append("RAG")
+                    tips.append(f"RAG: {', '.join(rag)}")
+
+                provider = metadata.get("provider")
+                model = metadata.get("model")
+                if provider or model:
+                    tips.append(f"Model: {model or 'Unknown'} ({provider or 'Unknown provider'})")
+
+                tokens = metadata.get("tokens")
+                if tokens:
+                    tips.append(
+                        f"Tokens: {tokens['total_tokens']} total "
+                        f"({tokens['input_tokens']} in / {tokens['output_tokens']} out)"
+                    )
+
+                if labels:
+                    st.markdown(
+                        "<style>"
+                        "hr.ta-meta-divider { margin: 0.15rem 0 !important; }"
+                        "[data-testid='stElementContainer']:has(hr.ta-meta-divider) "
+                        "+ div { margin-top: -0.5rem; }"
+                        "</style><hr class='ta-meta-divider'>",
+                        unsafe_allow_html=True
+                    )
+                    st.caption(f"Used: [ {' | '.join(labels)} ]", help="\n\n".join(tips))
     else:
         st.markdown(content)
 

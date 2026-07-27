@@ -1,79 +1,99 @@
-"""Tests for password reset tool."""
+"""Tests for password reset request tool."""
 
-import json
-import os
 import pytest
-from src.tools.password_tools import reset_password_tool, _generate_temporary_password
-from src.auth_config import USERS
+from src.tools.password_tools import reset_password_tool, list_pending_password_reset_requests_tool
+from src.storage.password_reset_store import PasswordResetRequest, PasswordResetStore
 
 
-def test_generate_temporary_password():
-    """Test that generated password is 12 chars and alphanumeric."""
-    password = _generate_temporary_password()
-    assert len(password) == 12
-    assert password.isalnum()
-    assert password.replace(password[0], "") != password  # Not all same char
+@pytest.fixture
+def mock_password_reset_store(monkeypatch):
+    """Fixture: mock PasswordResetStore instance for testing."""
+    from unittest.mock import MagicMock
+
+    mock_store = MagicMock(spec=PasswordResetStore)
+
+    def mock_create(user_email):
+        return PasswordResetRequest(
+            id="reset-123",
+            user_email=user_email,
+            status="pending",
+            requested_at="2026-07-27T10:00:00+00:00",
+        )
+
+    mock_store.create_request = mock_create
+    monkeypatch.setattr("src.tools.password_tools.password_reset_store", mock_store)
+    return mock_store
 
 
-def test_generate_temporary_password_uniqueness():
-    """Test that generated passwords are unique (high probability)."""
-    passwords = [_generate_temporary_password() for _ in range(100)]
-    assert len(set(passwords)) > 95  # At least 95 unique out of 100
-
-
-def test_reset_password_tool_returns_valid_response():
+def test_reset_password_tool_returns_valid_response(mock_password_reset_store):
     """Test that reset_password_tool returns expected response structure."""
     result = reset_password_tool("alice@techassist.com")
 
-    assert isinstance(result, dict)
-    assert "status" in result
     assert result["status"] == "success"
-    assert "new_password" in result
+    assert result["request_id"] == "reset-123"
     assert "message" in result
-    assert len(result["new_password"]) == 12
 
 
-def test_reset_password_tool_updates_user_password():
-    """Test that password reset actually updates the user's password in USERS."""
+def test_reset_password_tool_does_not_change_password(mock_password_reset_store):
+    """Test that reset_password_tool no longer mutates the user's actual password."""
+    from src.auth_config import USERS
+
     test_email = "bob@techassist.com"
     old_password = USERS[test_email]["password"]
 
-    result = reset_password_tool(test_email)
+    reset_password_tool(test_email)
 
-    assert result["status"] == "success"
-    assert USERS[test_email]["password"] == result["new_password"]
-    assert USERS[test_email]["password"] != old_password
+    assert USERS[test_email]["password"] == old_password
 
 
-def test_reset_password_tool_fails_for_nonexistent_user():
-    """Test that resetting password for nonexistent user returns error."""
+def test_reset_password_tool_fails_for_nonexistent_user(mock_password_reset_store):
+    """Test that raising a request for a nonexistent user returns error."""
     result = reset_password_tool("nonexistent@techassist.com")
 
     assert result["status"] == "error"
     assert "not found" in result["message"]
 
 
-def test_reset_password_tool_logs_to_file():
-    """Test that password reset is logged to JSON file."""
-    test_email = "carol@techassist.com"
+def test_password_reset_store_persists_request(tmp_path):
+    """Test that PasswordResetStore creates and saves a request."""
+    store = PasswordResetStore(str(tmp_path / "password_reset_requests.json"))
+    request = store.create_request("carol@techassist.com")
 
-    # Ensure file doesn't exist first
-    if os.path.exists("data/passwords.json"):
-        os.remove("data/passwords.json")
+    assert request.status == "pending"
+    requests = store.list_user_requests("carol@techassist.com")
+    assert len(requests) == 1
+    assert requests[0].id == request.id
 
-    result = reset_password_tool(test_email)
 
-    # Check file was created and contains the reset
-    assert os.path.exists("data/passwords.json")
-    with open("data/passwords.json", "r") as f:
-        log = json.load(f)
+def test_password_reset_store_lists_pending_requests(tmp_path):
+    """Test that PasswordResetStore.list_pending_requests returns all pending requests."""
+    store = PasswordResetStore(str(tmp_path / "password_reset_requests.json"))
+    store.create_request("alice@techassist.com")
+    store.create_request("bob@techassist.com")
 
-    assert "resets" in log
-    assert len(log["resets"]) > 0
-    last_reset = log["resets"][-1]
-    assert last_reset["user_email"] == test_email
-    assert last_reset["password"] == result["new_password"]
+    pending = store.list_pending_requests()
+    assert len(pending) == 2
+    assert {r.user_email for r in pending} == {"alice@techassist.com", "bob@techassist.com"}
 
-    # Cleanup
-    if os.path.exists("data/passwords.json"):
-        os.remove("data/passwords.json")
+
+def test_list_pending_password_reset_requests_tool(monkeypatch):
+    """Test that the admin tool returns formatted pending requests."""
+    from unittest.mock import MagicMock
+
+    mock_store = MagicMock(spec=PasswordResetStore)
+    mock_store.list_pending_requests.return_value = [
+        PasswordResetRequest(
+            id="reset-123",
+            user_email="alice@techassist.com",
+            status="pending",
+            requested_at="2026-07-27T10:00:00+00:00",
+        )
+    ]
+    monkeypatch.setattr("src.tools.password_tools.password_reset_store", mock_store)
+
+    result = list_pending_password_reset_requests_tool()
+
+    assert result["status"] == "success"
+    assert len(result["requests"]) == 1
+    assert result["requests"][0]["request_id"] == "reset-123"
+    assert result["requests"][0]["user_email"] == "alice@techassist.com"

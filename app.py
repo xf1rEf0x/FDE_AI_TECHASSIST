@@ -18,10 +18,9 @@ from src.sessions import (
     list_sessions,
     update_session,
 )
-from src.ui.helpdesk_tab import render_helpdesk_tab
 from src.ui.external_services_tab import render_external_services_tab
 from src.ui.components import form_group, info_box, status_badge, header_card, message_container, action_card
-from src.auth import login, logout, get_current_user, is_admin
+from src.auth import login, logout, get_current_user, is_admin, is_account_locked
 
 # ============================================================================
 # LOGIN GATE
@@ -70,8 +69,10 @@ if not get_current_user():
                 else:
                     user = login(email, password)
                     if user:
-                        info_box(f"Welcome, {user['name']}!", "success")
+                        st.toast(f"Welcome, {user['name']}!", icon="✅")
                         st.rerun()
+                    elif is_account_locked(email):
+                        info_box("This account is locked. Contact an admin to unlock it.", "error")
                     else:
                         info_box("Invalid email or password.", "error")
 
@@ -81,7 +82,7 @@ if not get_current_user():
 - alice@techassist.com / password123
 - bob@techassist.com / password123
 - carol@techassist.com / password123
-- david@techassist.com / password123
+- david@techassist.com / password123 (locked — ask admin to unlock)
 - engineer@techassist.com / engineer123
 - admin@techassist.com / admin123""", "info")
     st.stop()
@@ -111,6 +112,9 @@ if "current_session_id" not in st.session_state:
 if "temperature" not in st.session_state:
     st.session_state.temperature = 0.7
 
+if "provider" not in st.session_state:
+    st.session_state.provider = "google"
+
 # Sidebar: Role and model selector
 with st.sidebar:
     st.header("Settings")
@@ -119,12 +123,29 @@ with st.sidebar:
     current_user = get_current_user()
     if current_user:
         st.markdown(f"**Logged in as:** {current_user['name']}")
-        st.markdown(status_badge(current_user['role'].capitalize(), "completed"))
+        st.markdown(
+            status_badge(current_user['role'].capitalize(), "completed"),
+            help=get_system_prompt(st.session_state.role)
+        )
         if st.button("🚪 Logout", use_container_width=True):
             logout()
 
     # Settings section with temperature control
     def render_settings():
+        # Provider selector
+        provider_labels = {"google": "Google", "huggingface": "HuggingFace"}
+        selected_label = st.selectbox(
+            "LLM Provider:",
+            options=list(provider_labels.values()),
+            index=list(provider_labels.keys()).index(st.session_state.provider),
+            help="Switch which LLM backend powers the chat assistant"
+        )
+        selected_provider = next(k for k, v in provider_labels.items() if v == selected_label)
+        if selected_provider != st.session_state.provider:
+            st.session_state.provider = selected_provider
+            st.session_state.agent = None  # force re-init with new provider
+            st.rerun()
+
         # Temperature slider
         st.session_state.temperature = st.slider(
             "Temperature:",
@@ -141,10 +162,6 @@ with st.sidebar:
         render_settings()
         st.divider()
 
-    # Show current role info
-    with st.expander("ℹ️ About your role"):
-        st.markdown(get_system_prompt(st.session_state.role))
-
     # Session history section
     def render_session_history():
         sessions = list_sessions()
@@ -153,24 +170,25 @@ with st.sidebar:
                 col1, col2 = st.columns([3, 1])
                 with col1:
                     if st.button(
-                        f"🔄 {session_data['name'][:40]}",
+                        f"💬 {session_data['name'][:40]}",
                         use_container_width=True,
-                        key=f"load_{session_id}"
+                        key=f"load_{session_id}",
+                        help="Open this conversation"
                     ):
                         loaded = get_session(session_id)
                         if loaded:
                             st.session_state.messages = loaded["messages"]
                             st.session_state.role = loaded["role"]
                             st.session_state.current_session_id = session_id
-                            info_box(f"Loaded: {loaded['name']}", "success")
+                            st.toast(f"Loaded: {loaded['name']}", icon="✅")
                             st.rerun()
                 with col2:
-                    if st.button("🗑️", key=f"delete_{session_id}", help="Delete session"):
+                    if st.button("🗑️", key=f"delete_{session_id}", help="Delete this session"):
                         delete_session(session_id)
                         if st.session_state.current_session_id == session_id:
                             st.session_state.current_session_id = None
                             st.session_state.messages = []
-                        info_box("Deleted", "success")
+                        st.toast("Session deleted", icon="🗑️")
                         st.rerun()
             st.caption(f"Total: {len(sessions)} session(s)")
         else:
@@ -183,21 +201,20 @@ with st.sidebar:
         st.divider()
 
     # Clear conversation button
-    if st.button("New Chat", use_container_width=True):
+    if st.button("🆕 New Chat", use_container_width=True, help="Start a fresh conversation"):
         st.session_state.messages = []
         st.session_state.current_session_id = None
-        info_box("Conversation cleared!", "success")
+        st.toast("Started a new conversation", icon="🆕")
         st.rerun()
 
 # Main content tabs
-tabs_list = ["💬 AI Chat", "🎫 HelpDesk"]
+tabs_list = ["💬 AI Chat"]
 if current_user.get("role") == "engineer":
     tabs_list.append("☁️ External Services Status")
 
 tab_objects = st.tabs(tabs_list)
 tab_chat = tab_objects[0]
-tab_helpdesk = tab_objects[1]
-tab_services = tab_objects[2] if len(tab_objects) > 2 else None
+tab_services = tab_objects[1] if len(tab_objects) > 1 else None
 
 with tab_chat:
     # Header with title and description
@@ -206,41 +223,43 @@ with tab_chat:
 
     # Chat history container (scrollable)
     for message in st.session_state.messages:
-        message_container(message["content"], message["role"])
+        message_container(message["content"], message["role"], metadata=message.get("metadata"))
 
-
-    # User input (pinned at bottom via native layout)
-    user_input = st.chat_input("Ask me anything about IT support...")
-
-    if user_input:
-        # Validate input
-        if not user_input.strip():
-            info_box("Please enter a message.", "warning")
-            st.stop()
-
-        # Add user message to history
-        user_message = format_message("user", user_input)
-        st.session_state.messages.append(user_message)
-        st.rerun()
-
-    # Get and display assistant response after messages are shown
+    # Get and display assistant response before the input box, so the reply
+    # renders above it in the tab (st.chat_input doesn't stick to the page
+    # bottom when nested inside a tab, so anything coded after it here would
+    # render below the input instead of in the chat history).
     if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "user":
         try:
-            # Initialize agent for this session if not already done
-            if st.session_state.agent is None:
-                st.session_state.agent = get_agent_instance(
-                    current_user["email"],
-                    st.session_state.role,
-                    st.session_state.temperature
-                )
+            with st.spinner("🤔 Thinking..." if st.session_state.agent else "⚙️ Starting up assistant (first message only)..."):
+                # Initialize agent for this session if not already done
+                if st.session_state.agent is None:
+                    st.session_state.agent = get_agent_instance(
+                        current_user["email"],
+                        st.session_state.role,
+                        st.session_state.temperature,
+                        st.session_state.provider,
+                        employee_id=current_user["employee_id"]
+                    )
 
-            with st.spinner("🤔 Thinking..."):
                 # Get response from agent (has its own memory)
                 full_response = st.session_state.agent.invoke(st.session_state.messages[-1]["content"])
 
             # Add assistant message to history (for Streamlit display only)
-            assistant_message = format_message("assistant", full_response)
+            reply_metadata = {
+                "tools": st.session_state.agent.last_tools_used,
+                "rag": st.session_state.agent.last_rag_used,
+                "agent": st.session_state.agent.agent_name,
+                "model": st.session_state.agent.model_name,
+                "provider": st.session_state.agent.provider_label,
+                "tokens": st.session_state.agent.last_token_usage,
+            }
+            assistant_message = format_message("assistant", full_response, metadata=reply_metadata)
             st.session_state.messages.append(assistant_message)
+
+            # Render immediately so the answer appears the instant the spinner
+            # ends, instead of waiting for a full rerun to redraw it.
+            message_container(assistant_message["content"], "assistant", metadata=reply_metadata)
 
             # Auto-create session on first response if not already in a session
             if not st.session_state.current_session_id:
@@ -250,8 +269,6 @@ with tab_chat:
             if st.session_state.current_session_id:
                 update_session(st.session_state.current_session_id, st.session_state.messages)
 
-            st.rerun()
-
         except ValueError as e:
             info_box(str(e), "error")
         except Exception as e:
@@ -259,9 +276,22 @@ with tab_chat:
             info_box(f"Error: {error_msg}", "error")
             if "API" in error_msg or "key" in error_msg.lower():
                 info_box("Please check your Gemini API key in `.env` and try again.", "info")
-with tab_helpdesk:
-    render_helpdesk_tab(current_user.get("email"))
 
 if tab_services is not None:
     with tab_services:
         render_external_services_tab()
+
+# Chat input lives outside the tabs at the script's root: st.chat_input only
+# sticks to the bottom of the page when it isn't nested inside a container
+# like st.tabs(). Kept here (not inside tab_chat) so it stays visible as a
+# fixed footer while chatting.
+user_input = st.chat_input("Ask me anything about IT support...")
+
+if user_input:
+    if not user_input.strip():
+        info_box("Please enter a message.", "warning")
+        st.stop()
+
+    user_message = format_message("user", user_input)
+    st.session_state.messages.append(user_message)
+    st.rerun()

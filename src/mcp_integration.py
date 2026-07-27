@@ -1,7 +1,49 @@
-"""MCP (Model Context Protocol) integration with LangChain for external services."""
+"""MCP (Model Context Protocol) integration with LangChain for external services.
 
+Connects to Tavily's hosted MCP server (rather than the langchain-tavily SDK
+wrapper) via langchain-mcp-adapters, and uses its tavily_search tool for
+service status lookups — restricted to each provider's own official status
+domain(s) so results don't get diluted by third-party aggregators
+(Downdetector, StatusGator, etc).
+"""
+
+import asyncio
+import json
 import os
-from typing import Dict, Any, List
+from typing import Any, Dict, List
+
+from langchain_mcp_adapters.client import MultiServerMCPClient
+
+TAVILY_MCP_URL = "https://mcp.tavily.com/mcp/"
+
+# Each service is only searched within its own official status domain(s), and
+# carries a direct fallback link for when search turns up nothing.
+STATUS_SOURCES = {
+    "aws": {
+        "label": "AWS",
+        "query": "AWS service health dashboard current status incidents",
+        "domains": ["status.aws.amazon.com", "health.aws.amazon.com"],
+        "fallback_url": "https://health.aws.amazon.com/health/status",
+    },
+    "gcp": {
+        "label": "Google Cloud",
+        "query": "Google Cloud status incidents current",
+        "domains": ["status.cloud.google.com"],
+        "fallback_url": "https://status.cloud.google.com/summary",
+    },
+    "azure": {
+        "label": "Azure",
+        "query": "Azure status incidents current",
+        "domains": ["azure.status.microsoft", "status.azure.com"],
+        "fallback_url": "https://azure.status.microsoft/en-us/status",
+    },
+    "google": {
+        "label": "Google Workspace",
+        "query": "Google Workspace apps status dashboard incidents",
+        "domains": ["www.google.com"],
+        "fallback_url": "https://www.google.com/appsstatus/dashboard",
+    },
+}
 
 
 class MCPIntegration:
@@ -15,99 +57,78 @@ class MCPIntegration:
         self.tools = self._initialize_tools()
 
     def _initialize_tools(self) -> Dict[str, Any]:
-        """Initialize available MCP tools."""
-        tools = {}
-
-        if self.tavily_api_key:
-            from langchain_tavily import TavilySearchResults
-            tools["tavily_search"] = TavilySearchResults(
-                api_key=self.tavily_api_key,
-                max_results=5
-            )
-
-        return tools
+        """Connect to the Tavily MCP server and load its tools."""
+        client = MultiServerMCPClient({
+            "tavily": {
+                "url": f"{TAVILY_MCP_URL}?tavilyApiKey={self.tavily_api_key}",
+                "transport": "streamable_http",
+            }
+        })
+        mcp_tools = asyncio.run(client.get_tools())
+        return {tool.name: tool for tool in mcp_tools}
 
     def get_service_status(self, service_name: str) -> Dict[str, Any]:
         """
-        Query service status using Tavily search.
+        Query service status using the Tavily MCP search tool, restricted to
+        the service's own official status domain(s).
 
         Args:
-            service_name: Name of service (AWS, GCP, Azure, Google)
+            service_name: Name of service (aws, gcp, azure, google)
 
         Returns:
-            Dictionary with service status information
+            dict with keys: service, results (list of {title, content, url}),
+            domains (trusted domains searched), fallback_url, source
+            — or {"error": "..."} on failure
         """
-        if "tavily_search" not in self.tools:
+        search_tool = self.tools.get("tavily_search")
+        if search_tool is None:
             return {"error": "Tavily search not configured"}
 
+        source = STATUS_SOURCES.get(service_name.lower())
+        if source is None:
+            return {"error": f"Unknown service: {service_name}"}
+
         try:
-            tavily_tool = self.tools["tavily_search"]
-
-            # Map service names to their status page URLs
-            status_queries = {
-                "aws": "AWS status page current incidents problems",
-                "gcp": "Google Cloud status page current incidents problems",
-                "azure": "Microsoft Azure status page current incidents problems",
-                "google": "Google services status page current incidents problems",
-            }
-
-            query = status_queries.get(
-                service_name.lower(),
-                f"{service_name} status page current incidents"
-            )
-
-            # Use Tavily to search for current status
-            results = tavily_tool.invoke({"query": query})
-
-            # Parse results into readable format
-            formatted_items = []
-            if isinstance(results, str):
-                formatted_items = self._parse_status_text(results)
-            elif isinstance(results, list):
-                for result in results:
-                    if isinstance(result, dict):
-                        # Extract title and relevant content
-                        title = result.get("title", "")
-                        content = result.get("content", "")
-                        url = result.get("url", "")
-
-                        item_text = f"**{title}**"
-                        if content:
-                            # Take first 300 chars of content
-                            summary = content[:300].strip()
-                            if len(content) > 300:
-                                summary += "..."
-                            item_text += f"\n\n{summary}"
-                        if url:
-                            item_text += f"\n\n[View full status]({url})"
-                        formatted_items.append(item_text)
-                    else:
-                        formatted_items.append(str(result))
-            else:
-                formatted_items = [str(results)]
+            raw_result = asyncio.run(search_tool.ainvoke({
+                "query": source["query"],
+                "include_domains": source["domains"],
+                "max_results": 4,
+            }))
+            results = self._extract_search_results(raw_result)
 
             return {
                 "service": service_name,
-                "status": formatted_items if formatted_items else ["No incidents reported"],
-                "source": "Tavily Search"
+                "results": results,
+                "domains": source["domains"],
+                "fallback_url": source["fallback_url"],
+                "source": "Tavily MCP Search",
             }
 
         except Exception as e:
             return {"error": f"Failed to get {service_name} status: {str(e)}"}
 
-    def _parse_status_text(self, text: str) -> List[str]:
-        """Parse raw status text into readable items."""
-        # Split by common delimiters or return as single item
-        if len(text) > 500:
-            return [text[:500] + "..."]
-        return [text] if text.strip() else ["No status information available"]
+    def _extract_search_results(self, raw_result: Any) -> List[dict]:
+        """Parse the MCP tool's content-block response into a list of result dicts.
+
+        The Tavily MCP tool returns a list of content blocks (each
+        {"type": "text", "text": "<json string>"}), where the JSON string
+        contains a "results" list of {url, title, content, score}.
+        """
+        results = []
+        blocks = raw_result if isinstance(raw_result, list) else [raw_result]
+
+        for block in blocks:
+            text = block.get("text") if isinstance(block, dict) else block
+            if not isinstance(text, str):
+                continue
+            try:
+                payload = json.loads(text)
+            except json.JSONDecodeError:
+                continue
+            results.extend(payload.get("results", []))
+
+        return results
 
     def get_all_services_status(self) -> Dict[str, Any]:
         """Get status for all major cloud services."""
-        services = ["aws", "gcp", "azure", "google"]
-        results = {}
-
-        for service in services:
-            results[service] = self.get_service_status(service)
-
-        return results
+        return {service: self.get_service_status(service) for service in STATUS_SOURCES}

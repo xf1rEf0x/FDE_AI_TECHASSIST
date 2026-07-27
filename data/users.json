@@ -1,0 +1,44 @@
+{
+  "alice@techassist.com": {
+    "password": "password123",
+    "employee_id": "EMP001",
+    "name": "Alice Johnson",
+    "role": "employee",
+    "account_status": "unlocked"
+  },
+  "bob@techassist.com": {
+    "password": "password123",
+    "employee_id": "EMP002",
+    "name": "Bob Smith",
+    "role": "employee",
+    "account_status": "unlocked"
+  },
+  "carol@techassist.com": {
+    "password": "password123",
+    "employee_id": "EMP003",
+    "name": "Carol Davis",
+    "role": "employee",
+    "account_status": "unlocked"
+  },
+  "david@techassist.com": {
+    "password": "password123",
+    "employee_id": "EMP004",
+    "name": "David Wilson",
+    "role": "employee",
+    "account_status": "unlocked"
+  },
+  "engineer@techassist.com": {
+    "password": "engineer123",
+    "employee_id": "ENG001",
+    "name": "Engineer User",
+    "role": "engineer",
+    "account_status": "unlocked"
+  },
+  "admin@techassist.com": {
+    "password": "admin123",
+    "employee_id": null,
+    "name": "Admin User",
+    "role": "admin",
+    "account_status": "unlocked"
+  }
+}

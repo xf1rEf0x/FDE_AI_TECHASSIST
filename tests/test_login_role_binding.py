@@ -1,9 +1,21 @@
 """Tests for login-to-chatbot role binding integration."""
 
+import shutil
+
 import pytest
-from src.auth import login
-from src.auth_config import USERS
+from src import auth_config
+from src.auth import login, is_account_locked
+from src.auth_config import set_account_status
 from src.tools.asset_search_tool import search_assets_by_employee
+
+
+@pytest.fixture(autouse=True)
+def isolated_users_file(tmp_path, monkeypatch):
+    """Redirect the users JSON file to an isolated temp copy so tests don't
+    depend on (or pollute) real persisted lock/unlock state."""
+    tmp_file = tmp_path / "users.json"
+    shutil.copy(auth_config.USERS_FILE, tmp_file)
+    monkeypatch.setattr(auth_config, "USERS_FILE", tmp_file)
 
 
 class TestLoginRoleBinding:
@@ -36,6 +48,17 @@ class TestLoginRoleBinding:
         """Test that invalid credentials return None."""
         user = login("invalid@techassist.com", "wrongpassword")
         assert user is None
+
+    def test_locked_account_cannot_login(self):
+        """Test that a locked account cannot log in even with correct credentials."""
+        set_account_status("david@techassist.com", "locked")
+        assert is_account_locked("david@techassist.com")
+        user = login("david@techassist.com", "password123")
+        assert user is None
+
+    def test_unlocked_account_reports_not_locked(self):
+        """Test that is_account_locked returns False for unlocked accounts."""
+        assert is_account_locked("alice@techassist.com") is False
 
     def test_asset_search_respects_user_id_alice(self):
         """Test that Alice can only see her own assets when user_id is set."""

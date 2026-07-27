@@ -141,7 +141,7 @@ def search_assets_by_type(asset_type: str, user_id: str = None, is_admin: bool =
 
 
 @tool
-def search_employee_assets(query: str, asset_type: Optional[str] = None, user_id: str = None, is_admin: bool = False) -> str:
+def search_employee_assets(query: str, asset_type: Optional[str] = None, user_id: Optional[str] = None, is_admin: bool = False) -> str:
     """Search for employee assets by name, serial number, or type.
 
     This tool searches across all employee assets in the system. You can:
@@ -170,6 +170,12 @@ def search_employee_assets(query: str, asset_type: Optional[str] = None, user_id
     # If still no results, try searching by type only (if asset_type provided)
     if not results and asset_type:
         results.extend(search_assets_by_type(asset_type, user_id=user_id, is_admin=is_admin))
+
+    # If still no results and this is a non-admin's own scoped search (e.g. the
+    # query was their email/user ID rather than their name), fall back to all
+    # of their own assets — the user_id scoping already narrows this to them.
+    if not results and user_id and not is_admin:
+        results.extend(search_assets_by_type("", user_id=user_id, is_admin=is_admin))
 
     if not results:
         return f"No assets found matching query: '{query}' {f'with type: {asset_type}' if asset_type else ''}"

@@ -1,59 +1,24 @@
-"""Password reset tools for agents."""
+"""Password reset request tools for agents."""
 
-import json
-import os
-import string
-import secrets
-from datetime import datetime
 from src.auth_config import USERS
+from src.storage.password_reset_store import PasswordResetStore
 
-# Password storage file for audit trail
-PASSWORD_LOG_FILE = "data/passwords.json"
-
-
-def _load_password_log() -> dict:
-    """Load password log from JSON file."""
-    if not os.path.exists(PASSWORD_LOG_FILE):
-        return {"resets": []}
-    try:
-        with open(PASSWORD_LOG_FILE, "r") as f:
-            return json.load(f)
-    except (json.JSONDecodeError, FileNotFoundError):
-        return {"resets": []}
-
-
-def _save_password_log(log: dict) -> None:
-    """Save password log to JSON file."""
-    os.makedirs(os.path.dirname(PASSWORD_LOG_FILE), exist_ok=True)
-    with open(PASSWORD_LOG_FILE, "w") as f:
-        json.dump(log, f, indent=2)
-
-
-def _generate_temporary_password(length: int = 12) -> str:
-    """
-    Generate a random temporary password.
-
-    Args:
-        length: Length of password (default 12)
-
-    Returns:
-        Random alphanumeric password
-    """
-    chars = string.ascii_letters + string.digits
-    return "".join(secrets.choice(chars) for _ in range(length))
+# Module-level store instance (shared across all tool calls)
+password_reset_store = PasswordResetStore("data/password_reset_requests.json")
 
 
 def reset_password_tool(user_email: str) -> dict:
     """
-    Reset a user's password and return temporary password.
+    Raise a password reset request for a user. Does not change the actual
+    password — the request is queued for IT to fulfill, same as a ticket.
 
     Args:
-        user_email: Email of the user requesting password reset
+        user_email: Email of the user requesting the password reset
 
     Returns:
         dict with keys:
             - status: "success" or "error"
-            - new_password: The generated temporary password (if success)
+            - request_id: ID of the created request (if success)
             - message: Human-readable confirmation message
     """
     if user_email not in USERS:
@@ -62,20 +27,30 @@ def reset_password_tool(user_email: str) -> dict:
             "message": f"User {user_email} not found.",
         }
 
-    new_password = _generate_temporary_password()
-    USERS[user_email]["password"] = new_password
-
-    # Log the reset for audit trail
-    log = _load_password_log()
-    log["resets"].append({
-        "user_email": user_email,
-        "timestamp": datetime.now().isoformat(),
-        "password": new_password,
-    })
-    _save_password_log(log)
-
+    request = password_reset_store.create_request(user_email)
     return {
         "status": "success",
-        "new_password": new_password,
-        "message": f"Password reset successfully for {user_email}. New temporary password has been generated.",
+        "request_id": request.id,
+        "message": f"Password reset request {request.id} raised for {user_email}. IT will process it shortly.",
+    }
+
+
+def list_pending_password_reset_requests_tool() -> dict:
+    """
+    List all pending password reset requests (admin tool).
+
+    Returns:
+        dict with keys: status, requests (list of dicts with request_id, user_email, requested_at)
+    """
+    requests = password_reset_store.list_pending_requests()
+    return {
+        "status": "success",
+        "requests": [
+            {
+                "request_id": r.id,
+                "user_email": r.user_email,
+                "requested_at": r.requested_at,
+            }
+            for r in requests
+        ],
     }

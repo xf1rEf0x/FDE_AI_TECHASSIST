@@ -78,3 +78,22 @@ class TestAssetSearch:
         result = search_employee_assets.invoke({"query": "XYZ999", "asset_type": None})
         assert isinstance(result, str)
         assert "No assets found" in result
+
+    def test_search_employee_assets_tool_falls_back_to_own_scope(self):
+        """Test that a non-admin's own-scope search still returns their
+        assets even when the query (e.g. their email) matches neither name,
+        serial, nor a given asset type."""
+        result = search_employee_assets.invoke(
+            {"query": "alice@techassist.com", "asset_type": None, "user_id": "EMP001", "is_admin": False}
+        )
+        assert isinstance(result, str)
+        assert "Alice Johnson" in result
+        assert "Laptop" in result
+
+    def test_search_employee_assets_tool_accepts_none_user_id(self):
+        """Test that an admin (whose employee_id is None) doesn't crash the tool."""
+        result = search_employee_assets.invoke(
+            {"query": "nonexistent-query", "asset_type": None, "user_id": None, "is_admin": True}
+        )
+        assert isinstance(result, str)
+        assert "No assets found" in result
