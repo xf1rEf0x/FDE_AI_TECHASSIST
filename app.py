@@ -18,6 +18,11 @@ from src.employee_service import (
     render_software_request,
     render_user_account,
 )
+from src.auth import login, logout, get_current_user, is_admin
+
+# ============================================================================
+# LOGIN GATE
+# ============================================================================
 
 st.set_page_config(
     page_title="TechAssist AI",
@@ -25,6 +30,42 @@ st.set_page_config(
     layout="wide",
     initial_sidebar_state="expanded"
 )
+
+# Check if user is logged in
+if not get_current_user():
+    st.title("🔐 TechAssist AI Login")
+    st.markdown("*Secure IT Support Assistant for TechAssist Solutions*")
+
+    with st.form("login_form"):
+        email = st.text_input("Email:", placeholder="e.g., alice@techassist.com")
+        password = st.text_input("Password:", type="password")
+        submitted = st.form_submit_button("Login", use_container_width=True)
+
+        if submitted:
+            if not email or not password:
+                st.error("Please enter email and password.")
+            else:
+                user = login(email, password)
+                if user:
+                    st.success(f"Welcome, {user['name']}!")
+                    st.rerun()
+                else:
+                    st.error("Invalid email or password.")
+
+    # Demo credentials hint
+    st.info("""
+    **Demo credentials:**
+    - alice@techassist.com / password123
+    - bob@techassist.com / password123
+    - carol@techassist.com / password123
+    - david@techassist.com / password123
+    - admin@techassist.com / admin123
+    """)
+    st.stop()
+
+# ============================================================================
+# MAIN APP (user is logged in)
+# ============================================================================
 
 st.title("🤖 TechAssist AI Support Assistant")
 st.markdown("*Your friendly IT support assistant for TechAssist Solutions*")
@@ -49,6 +90,16 @@ if "temperature" not in st.session_state:
 # Sidebar: Role and model selector
 with st.sidebar:
     st.header("Settings")
+
+    # Current user info and logout
+    current_user = get_current_user()
+    if current_user:
+        st.markdown(f"**Logged in as:** {current_user['name']}")
+        st.markdown(f"**Role:** {current_user['role'].capitalize()}")
+        if st.button("🚪 Logout", use_container_width=True):
+            logout()
+
+    st.divider()
 
     available_roles = get_available_roles()
     selected_role = st.selectbox(
