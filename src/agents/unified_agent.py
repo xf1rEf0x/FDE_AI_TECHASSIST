@@ -257,6 +257,29 @@ class TechAssistAgent:
 
         return tools
 
+    def _extract_text(self, response) -> str:
+        """Extract text from LLM response (handles both string and list formats)."""
+        if not hasattr(response, "content"):
+            return str(response)
+
+        content = response.content
+        if isinstance(content, str):
+            return content
+
+        # Gemini may return list of content blocks
+        if isinstance(content, list):
+            text_parts = []
+            for item in content:
+                if isinstance(item, dict) and "text" in item:
+                    text_parts.append(item["text"])
+                elif isinstance(item, str):
+                    text_parts.append(item)
+                else:
+                    text_parts.append(str(item))
+            return "".join(text_parts)
+
+        return str(content)
+
     def _create_system_prompt(self) -> str:
         """
         Create the system prompt text.
@@ -404,16 +427,10 @@ Always prioritize user needs while maintaining security and access control."""
             )
 
             final_response = self.llm.invoke(final_messages)
-            response_text = (
-                final_response.content
-                if hasattr(final_response, "content")
-                else str(final_response)
-            )
+            response_text = self._extract_text(final_response)
         else:
             # No tool calls, just return the LLM response
-            response_text = (
-                response.content if hasattr(response, "content") else str(response)
-            )
+            response_text = self._extract_text(response)
 
         # Add assistant response to memory
         self.memory.add_ai_message(response_text)
