@@ -186,3 +186,113 @@ def message_container(content: str, role: str, timestamp: Optional[str] = None) 
             """,
             unsafe_allow_html=True
         )
+
+
+def demo_components():
+    """
+    Demo all components for manual testing.
+    Run: streamlit run src/ui/components.py
+    """
+    st.title("🎨 TechAssist UI Component Demo")
+
+    # Demo header_card
+    st.subheader("header_card")
+    header_card("Section Title", "Optional description text")
+
+    # Demo status_badge
+    st.subheader("status_badge")
+    for status in ["operational", "degraded", "down", "pending", "completed"]:
+        st.write(status_badge(f"Service {status.title()}", status))
+
+    # Demo metric_tile
+    st.subheader("metric_tile")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        metric_tile("Active Sessions", "12", "💬")
+    with col2:
+        metric_tile("Pending Tickets", "5", "🎫")
+    with col3:
+        metric_tile("Admin Users", "3", "👤")
+
+    # Demo action_card
+    st.subheader("action_card")
+    col1, col2, col3 = st.columns(3)
+    with col1:
+        action_card("Create Ticket", "Report an issue", "📋", "demo_action_1")
+    with col2:
+        action_card("Request Software", "Install software", "💾", "demo_action_2")
+    with col3:
+        action_card("Check Assets", "View your devices", "🖥️", "demo_action_3")
+
+    # Demo message_container
+    st.subheader("message_container")
+    message_container("Hi, can you help me reset my password?", "user")
+    message_container("Of course! I can help you reset your password. Let me gather some information first.", "assistant")
+
+    # Demo form_group
+    st.subheader("form_group")
+    form_group("Username", "text", help_text="Enter your username", key="demo_username")
+    form_group("Password", "password", help_text="Enter your password", key="demo_password")
+
+
+if __name__ == "__main__":
+    st.set_page_config(page_title="Component Demo", layout="wide")
+    demo_components()
+
+
+def info_box(message: str, severity: str, dismissible: bool = False) -> None:
+    """
+    Display a color-coded alert box with severity indicator and optional dismiss button.
+
+    Uses native Streamlit alert functions (st.info, st.success, st.warning, st.error)
+    with emoji prefixes for visual clarity.
+
+    Args:
+        message: Alert message text
+        severity: One of "info", "success", "warning", "error"
+        dismissible: If True, note that dismissal is not natively supported in Streamlit
+                    (component is for documentation purposes; actual dismissal would require
+                    st.session_state management at the caller level)
+
+    Returns:
+        None (renders via Streamlit)
+    """
+    emoji_map = {
+        "info": "ℹ️",
+        "success": "✅",
+        "warning": "⚠️",
+        "error": "❌",
+    }
+    emoji = emoji_map.get(severity, "")
+    display_message = f"{emoji} {message}" if emoji else message
+
+    if severity == "info":
+        st.info(display_message)
+    elif severity == "success":
+        st.success(display_message)
+    elif severity == "warning":
+        st.warning(display_message)
+    elif severity == "error":
+        st.error(display_message)
+    else:
+        st.info(display_message)
+
+
+def sidebar_section(title: str, content_func: callable, expanded: bool = True) -> None:
+    """
+    Render a consistently-styled sidebar section with title and divider.
+
+    Parameters:
+        title: Section title to display in the sidebar
+        content_func: Callable that renders the section's content.
+                     Will be called within the sidebar context.
+        expanded: If True, section header is displayed; Streamlit does not have
+                 native collapsible sidebar sections, so this is informational.
+
+    Returns:
+        None (renders via Streamlit sidebar)
+    """
+    with st.sidebar:
+        st.markdown(f"**{title}**")
+        content_func()
+        st.divider()
