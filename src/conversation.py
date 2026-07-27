@@ -44,7 +44,15 @@ def get_response(user_message: str, role: str, history: list[dict], temperature:
     content = response.content
     # Handle both string and list responses (Gemini may return list of content blocks)
     if isinstance(content, list):
-        content = "".join(str(item) for item in content)
+        text_parts = []
+        for item in content:
+            if isinstance(item, dict) and "text" in item:
+                text_parts.append(item["text"])
+            elif isinstance(item, str):
+                text_parts.append(item)
+            else:
+                text_parts.append(str(item))
+        content = "".join(text_parts)
     return content
 
 
@@ -89,7 +97,15 @@ def get_response_stream(user_message: str, role: str, history: list[dict], tempe
     text = response.content
     # Handle both string and list responses (Gemini may return list of content blocks)
     if isinstance(text, list):
-        text = "".join(str(item) for item in text)
+        text_parts = []
+        for item in text:
+            if isinstance(item, dict) and "text" in item:
+                text_parts.append(item["text"])
+            elif isinstance(item, str):
+                text_parts.append(item)
+            else:
+                text_parts.append(str(item))
+        text = "".join(text_parts)
 
     # Simulate streaming by yielding the response in chunks
     chunk_size = 20
