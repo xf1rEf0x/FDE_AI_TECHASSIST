@@ -7,6 +7,7 @@ from langchain_core.prompts import (
     HumanMessagePromptTemplate,
 )
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
+from langchain_google_genai import ChatGoogleGenerativeAI
 from dotenv import load_dotenv
 
 load_dotenv()
@@ -25,6 +26,23 @@ def get_huggingface_api_key() -> str:
     if not api_key:
         raise ValueError(
             "HUGGING_FACE_API not found. Please set it in .env or environment variables."
+        )
+    return api_key
+
+
+def get_gemini_api_key() -> str:
+    """Load GOOGLE_API_KEY from .env or environment.
+
+    Returns:
+        Gemini API key
+
+    Raises:
+        ValueError: If key is not found
+    """
+    api_key = os.getenv("GOOGLE_API_KEY")
+    if not api_key:
+        raise ValueError(
+            "GOOGLE_API_KEY not found. Please set it in .env or environment variables."
         )
     return api_key
 
