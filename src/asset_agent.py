@@ -201,6 +201,17 @@ def search_assets(query: str, chat_history: list = None, temperature: float = 0.
 
         if ai_response and hasattr(ai_response, "content"):
             text = ai_response.content
+            # Handle both string and list responses (Gemini may return list of content blocks)
+            if isinstance(text, list):
+                text_parts = []
+                for item in text:
+                    if isinstance(item, dict) and "text" in item:
+                        text_parts.append(item["text"])
+                    elif isinstance(item, str):
+                        text_parts.append(item)
+                    else:
+                        text_parts.append(str(item))
+                text = "".join(text_parts)
             # Clean the response to remove reasoning tags
             return _clean_response(text)
 
