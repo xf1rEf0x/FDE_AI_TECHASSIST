@@ -6,6 +6,7 @@ from src.agents.software_agent import SoftwareRequestAgent
 from src.asset_agent import search_assets
 from src.intent_router import IntentRouter
 from src.auth import is_admin, get_current_user
+from src.ui.components import header_card, action_card, message_container, info_box
 
 
 def render_helpdesk_tab(user_email: str):
@@ -18,8 +19,8 @@ def render_helpdesk_tab(user_email: str):
     Args:
         user_email: Email of the current user
     """
-    st.subheader("🎫 Help Desk")
-    st.markdown("Ask about creating tickets, requesting software, or checking your assets. I'll route you to the right service.")
+    # Header
+    header_card("Help Desk", "Create tickets, request software, or check your assets")
 
     # Get current user for asset search
     current_user = get_current_user()
@@ -40,13 +41,33 @@ def render_helpdesk_tab(user_email: str):
     if "unified_helpdesk_messages" not in st.session_state:
         st.session_state.unified_helpdesk_messages = []
 
-    # Display chat history
-    for message in st.session_state.unified_helpdesk_messages:
-        with st.chat_message(message["role"]):
-            st.markdown(message["content"])
+    # Show quick action cards if no conversation started
+    if not st.session_state.unified_helpdesk_messages:
+        st.divider()
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            if action_card("Create Ticket", "Report an issue", "📋", "helpdesk_create_ticket"):
+                st.session_state.helpdesk_input_prefill = "I need to create a support ticket"
+        with col2:
+            if action_card("Request Software", "Install software", "💾", "helpdesk_request_software"):
+                st.session_state.helpdesk_input_prefill = "I need to request software"
+        with col3:
+            if action_card("Check Assets", "View your devices", "🖥️", "helpdesk_check_assets"):
+                st.session_state.helpdesk_input_prefill = "What assets do I have?"
+        st.divider()
 
-    # Chat input
-    user_input = st.chat_input("Ask about tickets, software requests, or your assets...")
+    # Chat history (scrolls naturally)
+    for message in st.session_state.unified_helpdesk_messages:
+        message_container(message["content"], message["role"])
+
+    # Chat input (pinned at bottom via native layout)
+    prefill_text = st.session_state.get("helpdesk_input_prefill", "")
+    user_input = st.chat_input(
+        "Ask about tickets, software requests, or your assets...",
+        value=prefill_text if prefill_text else None
+    )
+    if prefill_text:
+        del st.session_state.helpdesk_input_prefill
 
     if user_input:
         # Add user message to history
@@ -54,20 +75,15 @@ def render_helpdesk_tab(user_email: str):
             "role": "user",
             "content": user_input
         })
+        st.rerun()
 
-        # Display user message
-        with st.chat_message("user"):
-            st.markdown(user_input)
-
-        # Get response
+    # Get response after messages are shown
+    if len(st.session_state.unified_helpdesk_messages) > 0 and st.session_state.unified_helpdesk_messages[-1]["role"] == "user":
         try:
-            with st.chat_message("assistant"):
-                message_placeholder = st.empty()
-                message_placeholder.markdown("🤔 *Processing...*")
-
+            with st.spinner("🤔 Processing..."):
                 # Detect intent
                 intent_result = st.session_state.intent_router.detect_intent(
-                    user_input,
+                    st.session_state.unified_helpdesk_messages[-1]["content"],
                     st.session_state.unified_helpdesk_messages[:-1]
                 )
 
@@ -77,12 +93,12 @@ def render_helpdesk_tab(user_email: str):
                 if intent_result["clarification"]:
                     response = intent_result["clarification"]
                 elif intent_result["intent"] == "helpdesk":
-                    response = st.session_state.helpdesk_agent.run(user_input)
+                    response = st.session_state.helpdesk_agent.run(st.session_state.unified_helpdesk_messages[-1]["content"])
                 elif intent_result["intent"] == "software_request":
-                    response = st.session_state.software_agent.run(user_input)
+                    response = st.session_state.software_agent.run(st.session_state.unified_helpdesk_messages[-1]["content"])
                 elif intent_result["intent"] == "asset_search":
                     response = search_assets(
-                        user_input,
+                        st.session_state.unified_helpdesk_messages[-1]["content"],
                         chat_history=st.session_state.unified_helpdesk_messages[:-1],
                         temperature=0.7,
                         user_name=current_user.get("name") if current_user else "User",
@@ -93,19 +109,18 @@ def render_helpdesk_tab(user_email: str):
                 else:
                     response = "I'm not sure how to help with that. Could you clarify if you need: (1) a support ticket, (2) software installation, or (3) information about your assets?"
 
-                message_placeholder.markdown(response)
-
             # Add assistant message to history
             st.session_state.unified_helpdesk_messages.append({
                 "role": "assistant",
                 "content": response
             })
+            st.rerun()
 
         except Exception as e:
-            st.error(f"❌ Error: {str(e)}")
+            info_box(f"Error: {str(e)}", "error")
 
     # Show admin tools if applicable
     if user_is_admin:
         with st.expander("🔑 Admin Tools"):
-            st.info("You have admin permissions for software request approvals.")
+            info_box("You have admin permissions for software request approvals.", "info")
             st.markdown("Use the Software Request feature to manage pending requests.")
