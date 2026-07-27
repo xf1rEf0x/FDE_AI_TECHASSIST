@@ -1,6 +1,6 @@
 """LangChain agents for the Help Desk system."""
 
-from src.agents.helpdesk_agent import HelpDeskAgent
-from src.agents.software_agent import SoftwareRequestAgent
+# Agents have been consolidated into the unified TechAssistAgent.
+# See src/conversation.py for the unified agent implementation.
 
-__all__ = ["HelpDeskAgent", "SoftwareRequestAgent"]
+__all__ = []

@@ -2,9 +2,6 @@
 
 import streamlit as st
 from src.conversation import get_agent_instance
-from src.agents.software_agent import SoftwareRequestAgent
-from src.asset_agent import search_assets
-from src.intent_router import IntentRouter
 from src.auth import is_admin, get_current_user
 from src.ui.components import header_card, action_card, message_container, info_box
 
@@ -28,15 +25,9 @@ def render_helpdesk_tab(user_email: str):
     user_is_admin = is_admin()
     user_id = current_user.get("employee_id") if current_user else None
 
-    # Initialize agents and router on first visit
+    # Initialize unified agent on first visit
     if "helpdesk_agent" not in st.session_state:
         st.session_state.helpdesk_agent = get_agent_instance(user_email, "employee", temperature=0.0)
-
-    if "software_agent" not in st.session_state:
-        st.session_state.software_agent = SoftwareRequestAgent(user_email, is_admin=user_is_admin)
-
-    if "intent_router" not in st.session_state:
-        st.session_state.intent_router = IntentRouter()
 
     # Unified message history across all three services
     if "unified_helpdesk_messages" not in st.session_state:
@@ -80,33 +71,10 @@ def render_helpdesk_tab(user_email: str):
         message_container("🤔 Thinking...", "assistant")
 
         try:
-            # Detect intent
-            intent_result = st.session_state.intent_router.detect_intent(
-                st.session_state.unified_helpdesk_messages[-1]["content"],
-                st.session_state.unified_helpdesk_messages[:-1]
+            # Use unified agent for all request types (ticket, software, asset)
+            response = st.session_state.helpdesk_agent.invoke(
+                st.session_state.unified_helpdesk_messages[-1]["content"]
             )
-
-            response = ""
-
-            # Route to appropriate agent
-            if intent_result["clarification"]:
-                response = intent_result["clarification"]
-            elif intent_result["intent"] == "helpdesk":
-                response = st.session_state.helpdesk_agent.invoke(st.session_state.unified_helpdesk_messages[-1]["content"])
-            elif intent_result["intent"] == "software_request":
-                response = st.session_state.software_agent.run(st.session_state.unified_helpdesk_messages[-1]["content"])
-            elif intent_result["intent"] == "asset_search":
-                response = search_assets(
-                    st.session_state.unified_helpdesk_messages[-1]["content"],
-                    chat_history=st.session_state.unified_helpdesk_messages[:-1],
-                    temperature=0.7,
-                    user_name=current_user.get("name") if current_user else "User",
-                    user_id=user_id,
-                    is_admin=user_is_admin,
-                    provider=st.session_state.get("provider", "gemini").lower()
-                )
-            else:
-                response = "I'm not sure how to help with that. Could you clarify if you need: (1) a support ticket, (2) software installation, or (3) information about your assets?"
 
             # Add assistant message to history
             st.session_state.unified_helpdesk_messages.append({
