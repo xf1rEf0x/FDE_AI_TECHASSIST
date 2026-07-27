@@ -3,6 +3,7 @@ Unit tests for UI component library base and color system.
 """
 
 import pytest
+from unittest.mock import patch, MagicMock
 from src.ui.components import (
     COLOR_PRIMARY,
     COLOR_SUCCESS,
@@ -16,6 +17,9 @@ from src.ui.components import (
     SPACING_MD,
     SPACING_LG,
     SPACING_XL,
+    header_card,
+    status_badge,
+    form_group,
 )
 
 
@@ -67,3 +71,31 @@ def test_spacing_constants():
     assert SPACING_MD == SPACING_UNIT * 2
     assert SPACING_LG == SPACING_UNIT * 3
     assert SPACING_XL == SPACING_UNIT * 4
+
+
+def test_status_badge():
+    """Test badge formatting for all statuses."""
+    assert status_badge("Operational", "operational") == "✅ Operational"
+    assert status_badge("Degraded", "degraded") == "⚠️ Degraded"
+    assert status_badge("Down", "down") == "❌ Down"
+    assert status_badge("Pending", "pending") == "⏳ Pending"
+    assert status_badge("Completed", "completed") == "✓ Completed"
+
+
+def test_status_badge_unknown():
+    """Test unknown status returns label unchanged."""
+    assert status_badge("Unknown", "unknown") == "Unknown"
+    assert status_badge("Custom", "invalid_status") == "Custom"
+
+
+def test_form_group_signature():
+    """Test function has correct parameters."""
+    import inspect
+    sig = inspect.signature(form_group)
+    params = list(sig.parameters.keys())
+    assert "label" in params
+    assert "input_type" in params
+    assert "help_text" in params
+    assert "key" in params
+    # Verify kwargs is supported
+    assert any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
