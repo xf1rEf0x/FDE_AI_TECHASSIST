@@ -1,64 +1,39 @@
-"""Memory adapters to convert between Streamlit session state and LangChain memory."""
+"""Memory adapters to convert between Streamlit session state and message lists."""
 
-from langchain.memory import ConversationBufferMemory
-from langchain_core.messages import BaseMessage, HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, BaseMessage
 
 
-def history_to_langchain_memory(history: list[dict]) -> ConversationBufferMemory:
-    """Convert Streamlit conversation history to LangChain ConversationBufferMemory.
+def history_to_messages(history: list[dict]) -> list[BaseMessage]:
+    """Convert Streamlit conversation history to LangChain BaseMessage list.
 
     Args:
         history: List of messages in format [{"role": "user"/"assistant", "content": "..."}]
 
     Returns:
-        ConversationBufferMemory populated with history
+        List of HumanMessage or AIMessage objects
     """
-    memory = ConversationBufferMemory(human_prefix="User", ai_prefix="Assistant")
-
+    messages = []
     for msg in history:
         if msg["role"] == "user":
-            memory.save_context({"input": msg["content"]}, {"output": ""})
+            messages.append(HumanMessage(content=msg["content"]))
         elif msg["role"] == "assistant":
-            # For assistant messages, we need to pair them with the preceding user input
-            # This is a simplified approach: we assume messages alternate
-            pass
-
-    return memory
+            messages.append(AIMessage(content=msg["content"]))
+    return messages
 
 
-def extract_history_from_memory(memory: ConversationBufferMemory) -> list[dict]:
-    """Extract conversation history from LangChain memory back to Streamlit format.
+def messages_to_history(messages: list[BaseMessage]) -> list[dict]:
+    """Convert LangChain BaseMessage list back to Streamlit history format.
 
     Args:
-        memory: ConversationBufferMemory instance
+        messages: List of HumanMessage or AIMessage objects
 
     Returns:
         List of messages in format [{"role": "user"/"assistant", "content": "..."}]
     """
     history = []
-    buffer = memory.buffer
-
-    # Parse the buffer string (format: "User: ...\nAssistant: ...\n")
-    lines = buffer.split("\n")
-    current_role = None
-    current_content = []
-
-    for line in lines:
-        if line.startswith("User:"):
-            if current_role and current_content:
-                history.append({"role": current_role, "content": " ".join(current_content)})
-            current_role = "user"
-            current_content = [line[5:].strip()]
-        elif line.startswith("Assistant:"):
-            if current_role and current_content:
-                history.append({"role": current_role, "content": " ".join(current_content)})
-            current_role = "assistant"
-            current_content = [line[10:].strip()]
-        elif line.strip() and current_role:
-            current_content.append(line.strip())
-
-    # Don't forget the last message
-    if current_role and current_content:
-        history.append({"role": current_role, "content": " ".join(current_content)})
-
+    for msg in messages:
+        if isinstance(msg, HumanMessage):
+            history.append({"role": "user", "content": msg.content})
+        elif isinstance(msg, AIMessage):
+            history.append({"role": "assistant", "content": msg.content})
     return history
