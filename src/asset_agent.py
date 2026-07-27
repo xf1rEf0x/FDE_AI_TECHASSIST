@@ -110,20 +110,29 @@ def create_asset_search_agent(temperature: float = 0.7, user_name: str = None, u
     tools = [search_employee_assets]
 
     user_context = f"The current user's name is: {user_name}\n" if user_name else ""
-    access_note = "You are an admin and can see all employees' assets." if is_admin else "Only show assets for the current user if you have their employee ID."
+
+    if is_admin:
+        access_rules = """PERMISSIONS: You are an admin and can see all employees' assets. You may search for any employee's information."""
+    else:
+        access_rules = f"""PERMISSIONS: You can ONLY access assets for the current user ({user_name if user_name else 'unknown'}).
+You MUST REJECT any request to view another employee's assets with a clear message like:
+"I can only show you your own assets. For employee-specific information about other team members, please contact your IT admin."
+"""
 
     system_prompt = f"""You are a helpful IT Support Assistant specializing in employee asset management.
 Your role is to help employees find information about their assigned hardware and software assets.
 
 {user_context}
 
-{access_note}
+{access_rules}
 
 RESPOND ONLY WITH THE FINAL ANSWER - do not show your thinking process, reasoning, or internal thoughts.
 
 When a user asks about assets:
 1. If they say "me", "my", "mine" or "assigned to me" - search using the current user's name if available
-2. Otherwise, use the search_employee_assets tool to find assets by name, serial number, or type
+2. For other employee names, IMMEDIATELY CHECK if user is admin:
+   - If NOT admin: REJECT with access denied message. Do NOT search.
+   - If admin: Proceed with search_employee_assets tool
 3. The tool can search by:
    - Employee name (e.g., "Alice", "Bob Smith")
    - Serial number or license key (e.g., "C02XQ8NWLXJX")
@@ -135,7 +144,8 @@ Guidelines:
 3. Provide complete asset details when found
 4. If an asset is not found, suggest alternative search terms
 5. Provide warranty/expiry information when relevant
-6. Keep responses concise and focused on the asset information"""
+6. Keep responses concise and focused on the asset information
+7. ALWAYS enforce access control - never attempt to bypass permission rules"""
 
     agent = create_react_agent(model, tools, prompt=system_prompt)
     return agent
