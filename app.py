@@ -10,6 +10,7 @@ import streamlit as st
 load_dotenv()
 from src.conversation import get_response, get_response_stream
 from src.prompts import get_available_roles, get_system_prompt
+from src.utils import format_message
 from src.sessions import (
     create_session,
     get_session,
