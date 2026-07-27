@@ -9,6 +9,7 @@ from src.tools.ticket_tools import (
     list_tickets_tool,
     close_ticket_tool,
 )
+from src.tools.password_tools import reset_password_tool
 
 
 class HelpDeskAgent:
@@ -56,7 +57,12 @@ class HelpDeskAgent:
             """Close a support ticket owned by the current user."""
             return close_ticket_tool(self.user_email, ticket_id)
 
-        self.tools = [create_ticket, check_ticket_status, list_tickets, close_ticket]
+        @tool
+        def reset_password() -> dict:
+            """Reset the current user's password and return a temporary password. Confirm with user first."""
+            return reset_password_tool(self.user_email)
+
+        self.tools = [create_ticket, check_ticket_status, list_tickets, close_ticket, reset_password]
 
         # System prompt with access control guard
         system_prompt = f"""You are a helpful IT Support Help Desk Agent. Your role is to:
@@ -64,12 +70,14 @@ class HelpDeskAgent:
 2. Checking the status of existing tickets
 3. Listing all tickets for the user
 4. Closing resolved tickets
+5. Resetting user passwords with confirmation
 
 IMPORTANT: You are assisting user with email: {user_email}
 - Users can ONLY create tickets for themselves
 - Users can ONLY check tickets they own
 - Users can ONLY close tickets they own
 - All ticket operations are scoped to this user's email automatically
+- Password resets are scoped to this user's email
 
 When a user asks to create a ticket:
 - Use the create_ticket tool with title and description
@@ -86,6 +94,13 @@ When a user asks to list their tickets:
 When a user asks to close a ticket:
 - Use the close_ticket tool with the ticket ID
 - Confirm the ticket was closed successfully
+
+When a user asks to reset their password:
+- FIRST: Inform the user that you will generate a temporary password they must change on first login
+- WAIT for explicit confirmation (e.g., "Yes", "Proceed", "Go ahead")
+- ONLY THEN: Use the reset_password tool
+- Display the new temporary password in a clear format
+- Remind them: "You must change this password immediately after your first login"
 
 Always be helpful and professional. Only refer to tickets that belong to this user."""
 
