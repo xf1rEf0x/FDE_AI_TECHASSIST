@@ -171,7 +171,7 @@ with st.sidebar:
                             st.session_state.messages = loaded["messages"]
                             st.session_state.role = loaded["role"]
                             st.session_state.current_session_id = session_id
-                            st.success(f"✓ Loaded: {loaded['name']}")
+                            info_box(f"Loaded: {loaded['name']}", "success")
                             st.rerun()
                 with col2:
                     if st.button("🗑️", key=f"delete_{session_id}", help="Delete session"):
@@ -179,7 +179,7 @@ with st.sidebar:
                         if st.session_state.current_session_id == session_id:
                             st.session_state.current_session_id = None
                             st.session_state.messages = []
-                        st.success("Deleted")
+                        info_box("Deleted", "success")
                         st.rerun()
             st.caption(f"Total: {len(sessions)} session(s)")
         else:
@@ -192,7 +192,7 @@ with st.sidebar:
         st.session_state.messages = []
         st.session_state.template_selected = None
         st.session_state.current_session_id = None
-        st.success("Conversation cleared!")
+        info_box("Conversation cleared!", "success")
         st.rerun()
 
 # Main content tabs

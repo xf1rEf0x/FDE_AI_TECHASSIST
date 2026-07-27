@@ -89,8 +89,12 @@ def form_group(label: str, input_type: str, help_text: Optional[str] = None, key
 
     if input_type == "textarea":
         value = st.text_area("", key=key, help=help_text or "", **kwargs)
-    elif input_type in ("text", "password", "number"):
-        value = st.text_input("", key=key, type=input_type, help=help_text or "", **kwargs)
+    elif input_type == "text":
+        value = st.text_input("", key=key, help=help_text or "", **kwargs)
+    elif input_type == "password":
+        value = st.text_input("", key=key, type="password", help=help_text or "", **kwargs)
+    elif input_type == "number":
+        value = st.number_input("", key=key, help=help_text or "", **kwargs)
     else:
         raise ValueError(f"Invalid input_type: {input_type}")
 
