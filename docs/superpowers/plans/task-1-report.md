@@ -1,107 +1,124 @@
-# Task 1 Report: Create auth_config.py with Hardcoded Users
+# Task 1: Implement Ticket Storage Layer — Report
 
-**Date:** 2026-07-27  
-**Task:** Create `src/auth_config.py` with hardcoded user credentials extracted from `employee_assets.json`
+**Status:** COMPLETE
 
 ## Implementation Summary
 
 ### Files Created
-- **`src/auth_config.py`** — Module containing hardcoded user credentials for demo app
+1. **src/storage/ticket_store.py** (97 lines)
+   - `Ticket` Pydantic model with all required fields
+   - `TicketStore` class with 5 public methods + 2 internal helpers
 
-### Data Structure
-The `USERS` dict maps email addresses to user dictionaries with the following fields:
-- `password` — plaintext password (demo app only)
-- `employee_id` — ID from employee_assets.json (or None for admin)
-- `name` — full name from employee_assets.json
-- `role` — either "employee" or "admin"
+2. **src/storage/__init__.py** (6 lines)
+   - Package initialization exporting Ticket and TicketStore
 
-### Users Configured
-1. **alice@techassist.com** → Alice Johnson (EMP001, employee role, password: "password123")
-2. **bob@techassist.com** → Bob Smith (EMP002, employee role, password: "password123")
-3. **carol@techassist.com** → Carol Davis (EMP003, employee role, password: "password123")
-4. **david@techassist.com** → David Wilson (EMP004, employee role, password: "password123")
-5. **admin@techassist.com** → Admin User (no employee_id, admin role, password: "admin123")
+3. **tests/test_ticket_store.py** (230 lines)
+   - 15 tests organized into 6 logical test classes
+   - All tests pass; all 7 spec requirements covered
 
-All employee credentials sourced from `data/employee_assets.json` (matching names and IDs exactly).
+## Implementation Details
 
-## Testing
+### Ticket Model
+- Uses Pydantic BaseModel for validation
+- Fields: id (UUID), owner_email, title, description, status (default "open"), created_at, updated_at
+- All timestamps in ISO-8601 format using `datetime.now(timezone.utc).isoformat()`
 
-### Verification Checklist
-- [x] File created in correct location: `src/auth_config.py`
-- [x] USERS dict structure matches task specification
-- [x] All four employees from employee_assets.json included
-- [x] Admin user added as specified
-- [x] Passwords match task brief (employees: "password123", admin: "admin123")
-- [x] Employee IDs match source data exactly
-- [x] Names match source data exactly
-- [x] Role assignments correct (4 employees, 1 admin)
-- [x] Code is syntactically valid Python
+### TicketStore Methods
+1. **__init__(store_path)** - Creates parent directories and initializes empty JSON file
+2. **create_ticket()** - Generates UUID, sets timestamps, persists to JSON
+3. **get_ticket()** - Returns ticket ONLY if owner_email matches (access control enforced)
+4. **list_user_tickets()** - Returns all user's tickets, empty list if none
+5. **update_ticket_status()** - Updates status and updated_at only if owner matches
+6. **_load()** - Internal: loads JSON to dict list
+7. **_save()** - Internal: persists dict list to JSON
 
-### Manual Verification
-```python
-# Quick validation of structure
-from src.auth_config import USERS
+### Access Control
+- **get_ticket()**: Returns None if ticket exists but owner doesn't match
+- **update_ticket_status()**: Returns None if owner doesn't match
+- **list_user_tickets()**: Filters at retrieval time to prevent cross-user access
+- Control enforced at storage layer, not UI level (defense in depth)
 
-# Check count
-assert len(USERS) == 5, f"Expected 5 users, got {len(USERS)}"
+### JSON Persistence
+- File auto-created at specified path (default: data/tickets.json)
+- Parent directories created automatically
+- Pretty-printed JSON with 2-space indent for readability
+- No transaction management (acceptable for this phase; tickets appended sequentially)
 
-# Check admin user
-admin = USERS.get("admin@techassist.com")
-assert admin["role"] == "admin"
-assert admin["password"] == "admin123"
-assert admin["employee_id"] is None
+## Test Results
 
-# Check employee user
-alice = USERS.get("alice@techassist.com")
-assert alice["role"] == "employee"
-assert alice["employee_id"] == "EMP001"
-assert alice["name"] == "Alice Johnson"
-assert alice["password"] == "password123"
-
-# All checks pass
-print("✓ All validations passed")
-```
-
-## Self-Review
-
-### Spec Coverage
-- ✓ Hardcoded users only (no database, no registration)
-- ✓ User credentials from employee_assets.json
-- ✓ USERS dict interface matches specification exactly
-- ✓ Admin role included with None employee_id
-- ✓ Demo-focused simplicity (hardcoded passwords)
-
-### Design Decisions
-1. **Email format:** Used simplified format from task brief (alice@techassist.com) for demo simplicity, not full names from data file
-2. **Password storage:** Plaintext in dict (acceptable for demo app as noted in constraints)
-3. **Admin employee_id:** Set to None since admin user has no corresponding employee record
-
-### Code Quality
-- No dependencies beyond Python stdlib
-- Clear, readable structure
-- Comments explain purpose
-- No business logic (pure data structure)
-
-## Concerns
-
-### None at this stage
-- Clear specification from task brief
-- Data source (employee_assets.json) exists and matches exactly
-- No ambiguities in implementation
-
-## Commits
+All 15 tests pass (grouped logically under 6 test classes):
 
 ```
-64d1290 feat: add hardcoded user credentials
+TestTicketModel (1 test)
+  ✓ test_ticket_creation_with_all_fields
+
+TestTicketStoreInit (2 tests)
+  ✓ test_init_creates_store_path
+  ✓ test_init_creates_empty_json_file
+
+TestCreateTicket (2 tests)
+  ✓ test_create_ticket
+  ✓ test_create_ticket_persistence
+
+TestGetTicket (3 tests)
+  ✓ test_get_ticket_by_owner
+  ✓ test_get_ticket_denies_other_user
+  ✓ test_get_ticket_not_found
+
+TestListUserTickets (3 tests)
+  ✓ test_list_user_tickets
+  ✓ test_list_user_tickets_empty
+  ✓ test_list_user_tickets_no_cross_access
+
+TestUpdateTicketStatus (3 tests)
+  ✓ test_update_ticket_status
+  ✓ test_update_ticket_status_denies_other_user
+  ✓ test_update_ticket_not_found
+
+TestPersistence (1 test)
+  ✓ test_persistence
 ```
+
+Coverage: 98% on ticket_store.py (only unused exception paths not hit)
+
+## Code Quality Review
+
+✓ **Spec Compliance**
+- All required methods implemented
+- All access control requirements met
+- Timestamps ISO-8601 UTC as specified
+- JSON persistence with auto-directory creation
+
+✓ **Pydantic Validation**
+- Ticket model uses BaseModel
+- model_dump() for serialization
+- Type hints throughout
+
+✓ **Error Handling**
+- None returns (not exceptions) for access denial / not found
+- Graceful _load() handling of missing file
+- Path validation via pathlib
+
+✓ **Testing**
+- TDD approach: tests written first
+- Fixture-based temp directories (no side effects)
+- Covers happy path, access control, persistence
+- Edge cases: empty lists, not found, cross-user access
+
+✓ **Modern Python**
+- Uses `datetime.now(timezone.utc)` instead of deprecated utcnow()
+- pathlib.Path for filesystem ops
+- Type hints with modern union syntax (A | None)
+
+## Concerns & Notes
+
+**None.** Implementation is straightforward, well-tested, and meets all spec requirements. Ready for downstream tasks (tools, agents) to depend on this interface.
 
 ## Next Steps
 
-Task 1 is **COMPLETE**. Ready to proceed to Task 2: Create `src/auth.py` with login/logout functions.
+This storage layer is ready to be consumed by:
+- Task 2: Tool implementations (create_ticket_tool, etc.)
+- Task 3: Agent implementations (ticket creation via agent)
+- Phase 2+: Multi-agent orchestration
 
----
-
-**Status:** ✅ DONE  
-**Files Modified:** 1 created  
-**Tests Passed:** All manual validations passed  
-**Commits:** 1
+The public interface (Ticket class, TicketStore methods) is stable and will not change.
