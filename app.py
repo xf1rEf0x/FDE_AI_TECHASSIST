@@ -16,6 +16,8 @@ from src.sessions import (
     update_session,
 )
 from src.ui.helpdesk_tab import render_helpdesk_tab
+from src.ui.external_services_tab import render_external_services_tab
+from src.ui.components import form_group, info_box
 from src.auth import login, logout, get_current_user, is_admin
 
 # ============================================================================
@@ -29,36 +31,56 @@ st.set_page_config(
     initial_sidebar_state="expanded"
 )
 
+# Track login attempts
+if "login_attempted" not in st.session_state:
+    st.session_state.login_attempted = False
+
 # Check if user is logged in
 if not get_current_user():
-    st.title("🔐 TechAssist AI Login")
-    st.markdown("*Secure IT Support Assistant for TechAssist Solutions*")
+    # Center the login card using columns
+    col1, col2, col3 = st.columns([1, 1, 1])
+    with col2:
+        # Logo and tagline
+        st.markdown("# 🤖 TechAssist AI")
+        st.markdown("*IT Support, Simplified*")
+        st.divider()
 
-    with st.form("login_form"):
-        email = st.text_input("Email:", placeholder="e.g., alice@techassist.com")
-        password = st.text_input("Password:", type="password")
-        submitted = st.form_submit_button("Login", use_container_width=True)
+        # Login form
+        with st.form("login_form"):
+            email = form_group(
+                "Email",
+                "text",
+                help_text="e.g., alice@techassist.com",
+                placeholder="Enter your email"
+            )
+            password = form_group(
+                "Password",
+                "password",
+                help_text="Enter your password"
+            )
+            submitted = st.form_submit_button("Login", use_container_width=True)
 
-        if submitted:
-            if not email or not password:
-                st.error("Please enter email and password.")
-            else:
-                user = login(email, password)
-                if user:
-                    st.success(f"Welcome, {user['name']}!")
-                    st.rerun()
+            if submitted:
+                st.session_state.login_attempted = True
+                if not email or not password:
+                    info_box("Please enter email and password.", "error")
                 else:
-                    st.error("Invalid email or password.")
+                    user = login(email, password)
+                    if user:
+                        info_box(f"Welcome, {user['name']}!", "success")
+                        st.rerun()
+                    else:
+                        info_box("Invalid email or password.", "error")
 
-    # Demo credentials hint
-    st.info("""
-    **Demo credentials:**
-    - alice@techassist.com / password123
-    - bob@techassist.com / password123
-    - carol@techassist.com / password123
-    - david@techassist.com / password123
-    - admin@techassist.com / admin123
-    """)
+        # Demo credentials hint - only show on first load
+        if not st.session_state.login_attempted:
+            info_box("""**Demo credentials:**
+- alice@techassist.com / password123
+- bob@techassist.com / password123
+- carol@techassist.com / password123
+- david@techassist.com / password123
+- engineer@techassist.com / engineer123
+- admin@techassist.com / admin123""", "info")
     st.stop()
 
 # ============================================================================
@@ -177,22 +199,24 @@ with st.sidebar:
         st.rerun()
 
 # Main content tabs
-tab_chat, tab_helpdesk = st.tabs([
-    "💬 AI Chat",
-    "🎫 HelpDesk"
-])
+tabs_list = ["💬 AI Chat", "🎫 HelpDesk"]
+if current_user.get("role") == "engineer":
+    tabs_list.append("☁️ External Services Status")
+
+tab_objects = st.tabs(tabs_list)
+tab_chat = tab_objects[0]
+tab_helpdesk = tab_objects[1]
+tab_services = tab_objects[2] if len(tab_objects) > 2 else None
 
 with tab_chat:
-    # Display conversation history
     st.subheader("Conversation")
+
+    # Chat history container (scrollable)
     for message in st.session_state.messages:
         with st.chat_message(message["role"]):
             st.markdown(message["content"])
 
-    # User input
-    user_input = st.chat_input("Ask me anything about IT support...")
-
-    # Prompt templates below chat input
+    # Prompt templates (shown only when empty)
     if not st.session_state.messages:
         st.markdown("**Quick questions for your role:**")
         templates = get_prompt_templates(st.session_state.role)
@@ -202,6 +226,9 @@ with tab_chat:
                 if st.button(template, use_container_width=True, key=f"template_{idx}_{template[:10]}"):
                     st.session_state.template_selected = template
                     st.rerun()
+
+    # User input (pinned at bottom via native layout)
+    user_input = st.chat_input("Ask me anything about IT support...")
 
     # Handle template selection
     if st.session_state.template_selected and not st.session_state.messages:
@@ -217,28 +244,16 @@ with tab_chat:
         # Add user message to history
         user_message = format_message("user", user_input)
         st.session_state.messages.append(user_message)
+        st.rerun()
 
-        # Display user message
-        with st.chat_message("user"):
-            st.markdown(user_input)
-
-        # Get and display assistant response
+    # Get and display assistant response after messages are shown
+    if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "user":
         try:
-            with st.chat_message("assistant"):
-                message_placeholder = st.empty()
-
-                # Show thinking animation
-                message_placeholder.markdown("🤔 *Thinking...*")
-
-                full_response = ""
-
-                # Use streaming to display response in real-time
-                for chunk in get_response_stream(user_input, st.session_state.role, st.session_state.messages[:-1], temperature=st.session_state.temperature, provider=st.session_state.provider.lower()):
+            full_response = ""
+            with st.spinner("🤔 Thinking..."):
+                # Collect full response with streaming
+                for chunk in get_response_stream(st.session_state.messages[-1]["content"], st.session_state.role, st.session_state.messages[:-1], temperature=st.session_state.temperature, provider=st.session_state.provider.lower()):
                     full_response += chunk
-                    message_placeholder.markdown(full_response + "▌")
-
-                # Final response without cursor
-                message_placeholder.markdown(full_response)
 
             # Add assistant message to history
             assistant_message = format_message("assistant", full_response)
@@ -251,7 +266,8 @@ with tab_chat:
             # Auto-save current session
             if st.session_state.current_session_id:
                 update_session(st.session_state.current_session_id, st.session_state.messages)
-                st.rerun()
+
+            st.rerun()
 
         except ValueError as e:
             st.error(f"❌ {e}")
@@ -263,3 +279,7 @@ with tab_chat:
 
 with tab_helpdesk:
     render_helpdesk_tab(current_user.get("email"))
+
+if tab_services is not None:
+    with tab_services:
+        render_external_services_tab()
