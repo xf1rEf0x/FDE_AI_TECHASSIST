@@ -20,6 +20,9 @@ from src.ui.components import (
     header_card,
     status_badge,
     form_group,
+    metric_tile,
+    action_card,
+    message_container,
 )
 
 
@@ -99,3 +102,112 @@ def test_form_group_signature():
     assert "key" in params
     # Verify kwargs is supported
     assert any(p.kind == inspect.Parameter.VAR_KEYWORD for p in sig.parameters.values())
+
+
+def test_metric_tile_signature():
+    """Test metric_tile has correct signature."""
+    import inspect
+    sig = inspect.signature(metric_tile)
+    params = list(sig.parameters.keys())
+    assert "title" in params
+    assert "value" in params
+    assert "icon" in params
+    assert "subtitle" in params
+    # Verify return type is None
+    assert sig.return_annotation is None or sig.return_annotation == type(None)
+
+
+def test_metric_tile_defaults():
+    """Test metric_tile parameter defaults."""
+    import inspect
+    sig = inspect.signature(metric_tile)
+    assert sig.parameters["icon"].default == ""
+    assert sig.parameters["subtitle"].default is None
+
+
+@patch("streamlit.columns")
+@patch("streamlit.markdown")
+def test_metric_tile_renders(mock_markdown, mock_columns):
+    """Test metric_tile calls rendering functions."""
+    # Mock the column context manager
+    mock_col = MagicMock()
+    mock_columns.return_value = [mock_col]
+    mock_col.__enter__ = MagicMock(return_value=mock_col)
+    mock_col.__exit__ = MagicMock(return_value=False)
+
+    metric_tile("Test Metric", "42", "📊", "Additional info")
+
+    # Verify streamlit functions were called
+    mock_columns.assert_called_once()
+    assert mock_markdown.call_count >= 3  # At least title, value, subtitle
+
+
+def test_action_card_signature():
+    """Test action_card has correct signature."""
+    import inspect
+    sig = inspect.signature(action_card)
+    params = list(sig.parameters.keys())
+    assert "title" in params
+    assert "description" in params
+    assert "icon" in params
+    assert "key" in params
+    # Verify return type is bool
+    assert sig.return_annotation == bool
+
+
+@patch("streamlit.button")
+def test_action_card_returns_bool(mock_button):
+    """Test action_card returns boolean."""
+    mock_button.return_value = True
+    result = action_card("Action", "Do something", "⚡", "action_key")
+    assert isinstance(result, bool)
+    assert result is True
+    mock_button.assert_called_once()
+
+
+def test_message_container_signature():
+    """Test message_container has correct signature."""
+    import inspect
+    sig = inspect.signature(message_container)
+    params = list(sig.parameters.keys())
+    assert "content" in params
+    assert "role" in params
+    assert "timestamp" in params
+    # Verify return type is None
+    assert sig.return_annotation is None or sig.return_annotation == type(None)
+
+
+def test_message_container_timestamp_default():
+    """Test message_container timestamp parameter default."""
+    import inspect
+    sig = inspect.signature(message_container)
+    assert sig.parameters["timestamp"].default is None
+
+
+@patch("streamlit.markdown")
+def test_message_container_user_message(mock_markdown):
+    """Test message_container renders user messages correctly."""
+    message_container("Hello", "user", "10:00 AM")
+    mock_markdown.assert_called_once()
+    call_args = mock_markdown.call_args
+    assert "dbeafe" in str(call_args)  # COLOR_USER_BG
+    assert "flex-end" in str(call_args)  # right-aligned
+
+
+@patch("streamlit.markdown")
+def test_message_container_assistant_message(mock_markdown):
+    """Test message_container renders assistant messages correctly."""
+    message_container("Response", "assistant", "10:01 AM")
+    mock_markdown.assert_called_once()
+    call_args = mock_markdown.call_args
+    assert COLOR_PRIMARY in str(call_args)  # Primary border color
+    assert "flex-start" in str(call_args)  # left-aligned
+
+
+@patch("streamlit.markdown")
+def test_message_container_system_message(mock_markdown):
+    """Test message_container renders system messages correctly."""
+    message_container("System notification", "system")
+    mock_markdown.assert_called_once()
+    call_args = mock_markdown.call_args
+    assert "center" in str(call_args)  # centered

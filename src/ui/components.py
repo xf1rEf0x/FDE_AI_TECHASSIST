@@ -95,3 +95,94 @@ def form_group(label: str, input_type: str, help_text: Optional[str] = None, key
         raise ValueError(f"Invalid input_type: {input_type}")
 
     return value
+
+
+def metric_tile(title: str, value: str, icon: str = "", subtitle: Optional[str] = None) -> None:
+    """
+    Display a key metric (stat tile) with optional icon and subtitle.
+
+    Args:
+        title: Metric name
+        value: Metric value (string, e.g., "12")
+        icon: Optional emoji icon
+        subtitle: Optional additional text below value
+    """
+    cols = st.columns([1])
+    with cols[0]:
+        # Display icon if provided, followed by large value
+        if icon:
+            st.markdown(f"<div style='text-align: center;'><span style='font-size: 2em;'>{icon}</span></div>", unsafe_allow_html=True)
+
+        st.markdown(f"<div style='text-align: center; font-size: 2.5em; font-weight: bold; color: {COLOR_PRIMARY};'>{value}</div>", unsafe_allow_html=True)
+        st.markdown(f"<div style='text-align: center; font-size: 1em; color: {COLOR_NEUTRAL};'>{title}</div>", unsafe_allow_html=True)
+
+        if subtitle:
+            st.markdown(f"<div style='text-align: center; font-size: 0.9em; color: {COLOR_NEUTRAL}; margin-top: 6px;'>{subtitle}</div>", unsafe_allow_html=True)
+
+
+def action_card(title: str, description: str, icon: str, key: str) -> bool:
+    """
+    Render a clickable card for primary user actions.
+
+    Args:
+        title: Card title
+        description: Card description
+        icon: Emoji icon
+        key: Unique Streamlit key for button
+
+    Returns:
+        True if clicked, False otherwise
+    """
+    # Use a button with full width and custom formatting via markdown
+    button_text = f"{icon} {title}\n_{description}_"
+    return st.button(button_text, key=key, use_container_width=True)
+
+
+def message_container(content: str, role: str, timestamp: Optional[str] = None) -> None:
+    """
+    Render a single chat message with styling based on role.
+
+    Args:
+        content: Message text (markdown)
+        role: One of "user", "assistant", "system"
+        timestamp: Optional timestamp string
+    """
+    if role == "user":
+        # User messages: right-aligned with light blue background
+        st.markdown(
+            f"""
+            <div style='display: flex; justify-content: flex-end; margin: 12px 0;'>
+                <div style='background-color: {COLOR_USER_BG}; border-radius: 8px; padding: 12px 16px; max-width: 70%; text-align: left;'>
+                    <div style='color: #1f2937; font-size: 0.95em;'>{content}</div>
+                    {f"<div style='font-size: 0.8em; color: #6b7280; margin-top: 6px;'>{timestamp}</div>" if timestamp else ""}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    elif role == "assistant":
+        # Assistant messages: left-aligned with neutral background and primary border
+        st.markdown(
+            f"""
+            <div style='display: flex; justify-content: flex-start; margin: 12px 0;'>
+                <div style='background-color: white; border-left: 4px solid {COLOR_PRIMARY}; border-radius: 4px; padding: 12px 16px; max-width: 70%;'>
+                    <div style='color: #1f2937; font-size: 0.95em;'>{content}</div>
+                    {f"<div style='font-size: 0.8em; color: #6b7280; margin-top: 6px;'>{timestamp}</div>" if timestamp else ""}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
+    else:  # system
+        # System messages: centered with neutral styling
+        st.markdown(
+            f"""
+            <div style='display: flex; justify-content: center; margin: 12px 0;'>
+                <div style='background-color: {COLOR_SURFACE}; border-radius: 4px; padding: 12px 16px; max-width: 80%; text-align: center;'>
+                    <div style='color: {COLOR_NEUTRAL}; font-size: 0.9em;'>{content}</div>
+                    {f"<div style='font-size: 0.8em; color: #999999; margin-top: 6px;'>{timestamp}</div>" if timestamp else ""}
+                </div>
+            </div>
+            """,
+            unsafe_allow_html=True
+        )
