@@ -47,30 +47,42 @@ def get_gemini_api_key() -> str:
     return api_key
 
 
-def create_langchain_model(temperature: float = 0.7) -> ChatHuggingFace:
-    """Initialize HuggingFace chat model via LangChain.
+def create_langchain_model(temperature: float = 0.7, provider: str = "huggingface"):
+    """Initialize LLM model via LangChain based on chosen provider.
 
     Args:
         temperature: Model temperature (0.0 - 2.0)
+        provider: "huggingface" or "gemini" (case-insensitive)
 
     Returns:
-        ChatHuggingFace instance configured with temperature
+        LLM instance (ChatHuggingFace or ChatGoogleGenerativeAI) compatible with LCEL chains
 
     Raises:
-        ValueError: If HuggingFace API key is not set
+        ValueError: If provider is unknown or API key is missing
     """
-    api_key = get_huggingface_api_key()
+    provider = provider.lower().strip()
 
-    # Create HuggingFaceEndpoint first (the base LLM)
-    hf_llm = HuggingFaceEndpoint(
-        repo_id="deepseek-ai/DeepSeek-R1:novita",
-        huggingfacehub_api_token=api_key,
-        temperature=temperature,
-    )
+    if provider == "huggingface":
+        api_key = get_huggingface_api_key()
+        hf_llm = HuggingFaceEndpoint(
+            repo_id="deepseek-ai/DeepSeek-R1:novita",
+            huggingfacehub_api_token=api_key,
+            temperature=temperature,
+        )
+        model = ChatHuggingFace(llm=hf_llm)
+        return model
 
-    # Wrap in ChatHuggingFace for chat-specific behavior
-    model = ChatHuggingFace(llm=hf_llm)
-    return model
+    elif provider == "gemini":
+        api_key = get_gemini_api_key()
+        model = ChatGoogleGenerativeAI(
+            model="gemini-pro",
+            temperature=temperature,
+            google_api_key=api_key,
+        )
+        return model
+
+    else:
+        raise ValueError(f"Unknown provider: {provider}. Use 'huggingface' or 'gemini'.")
 
 
 def build_prompt_template(system_prompt: str) -> ChatPromptTemplate:
