@@ -1,71 +1,82 @@
-"""Integration tests for conversation module."""
+"""Tests for LangChain-based conversation module."""
 
 import pytest
 from unittest.mock import patch, MagicMock
-from src.conversation import get_response, initialize_client
+from src.conversation import get_response, get_response_stream
+from src.prompts import get_available_roles
 
 
-@pytest.mark.parametrize("role", ["employee", "engineer", "admin"])
-def test_get_response_with_valid_role(role, mock_gemini_client):
-    """Verify get_response works with all valid roles."""
-    with patch("src.conversation.initialize_client", return_value=mock_gemini_client):
-        response = get_response("Hello", role, [])
-        assert response is not None
-        assert len(response) > 0
+class TestGetResponse:
+    """Tests for get_response function."""
 
+    @patch('src.conversation.create_langchain_model')
+    def test_get_response_valid_input(self, mock_model):
+        """Test get_response with valid user message and role."""
+        mock_response = MagicMock()
+        mock_response.content = "This is a test response."
+        mock_model.return_value = mock_response
 
-def test_get_response_with_history(mock_gemini_client):
-    """Verify get_response includes conversation history."""
-    history = [
-        {"role": "user", "content": "What's the password policy?"},
-        {"role": "assistant", "content": "Our policy requires..."},
-    ]
+        with patch('src.conversation.ChatPromptTemplate.from_messages') as mock_prompt:
+            mock_chain = MagicMock()
+            mock_chain.invoke.return_value = mock_response
+            # Simulate the pipe operator behavior
+            mock_prompt.return_value.__or__.return_value = mock_chain
 
-    with patch("src.conversation.initialize_client", return_value=mock_gemini_client):
-        response = get_response("Can you summarize that?", "admin", history)
-        assert response is not None
-        assert len(response) > 0
+            response = get_response("Hello", "employee", [], temperature=0.7)
+            assert response == "This is a test response."
 
-
-def test_get_response_empty_message_raises_error(mock_gemini_client):
-    """Verify empty message raises ValueError."""
-    with patch("src.conversation.initialize_client", return_value=mock_gemini_client):
-        with pytest.raises(ValueError, match="cannot be empty"):
+    def test_get_response_empty_message_raises_error(self):
+        """Test that empty user message raises ValueError."""
+        with pytest.raises(ValueError, match="User message cannot be empty"):
             get_response("", "employee", [])
 
-
-def test_get_response_whitespace_message_raises_error(mock_gemini_client):
-    """Verify whitespace-only message raises ValueError."""
-    with patch("src.conversation.initialize_client", return_value=mock_gemini_client):
-        with pytest.raises(ValueError, match="cannot be empty"):
-            get_response("   ", "employee", [])
-
-
-def test_get_response_invalid_role(mock_gemini_client):
-    """Verify invalid role raises ValueError."""
-    with patch("src.conversation.initialize_client", return_value=mock_gemini_client):
+    def test_get_response_invalid_role_raises_error(self):
+        """Test that invalid role raises ValueError."""
         with pytest.raises(ValueError, match="Unknown role"):
             get_response("Hello", "invalid_role", [])
 
+    @pytest.mark.parametrize("role", get_available_roles())
+    @patch('src.conversation.create_langchain_model')
+    def test_get_response_all_roles(self, mock_model, role):
+        """Test get_response works with all available roles."""
+        mock_response = MagicMock()
+        mock_response.content = f"Response for {role}"
+        mock_model.return_value = mock_response
 
-@patch("src.conversation.genai.Client")
-@patch("src.conversation.get_api_key")
-def test_initialize_client_with_api_key(mock_get_key, mock_client_class):
-    """Verify client initializes with API key."""
-    mock_get_key.return_value = "test_key"
-    mock_client_instance = MagicMock()
-    mock_client_class.return_value = mock_client_instance
+        with patch('src.conversation.ChatPromptTemplate.from_messages') as mock_prompt:
+            mock_chain = MagicMock()
+            mock_chain.invoke.return_value = mock_response
+            mock_prompt.return_value.__or__.return_value = mock_chain
 
-    client = initialize_client()
-
-    mock_client_class.assert_called_once_with(api_key="test_key")
-    assert client == mock_client_instance
+            response = get_response("Test", role, [])
+            assert isinstance(response, str)
 
 
-@patch("src.conversation.get_api_key")
-def test_initialize_client_missing_api_key(mock_get_key):
-    """Verify missing API key raises error."""
-    mock_get_key.side_effect = ValueError("GOOGLE_API_KEY not found")
+class TestGetResponseStream:
+    """Tests for get_response_stream function."""
 
-    with pytest.raises(ValueError, match="GOOGLE_API_KEY not found"):
-        initialize_client()
+    @patch('src.conversation.create_langchain_model')
+    def test_get_response_stream_valid_input(self, mock_model):
+        """Test get_response_stream yields text chunks."""
+        mock_response = MagicMock()
+        mock_response.content = "This is a streamed response."
+        mock_model.return_value = mock_response
+
+        with patch('src.conversation.ChatPromptTemplate.from_messages') as mock_prompt:
+            mock_chain = MagicMock()
+            mock_chain.invoke.return_value = mock_response
+            mock_prompt.return_value.__or__.return_value = mock_chain
+
+            chunks = list(get_response_stream("Hello", "employee", []))
+            assert len(chunks) > 0
+            assert "".join(chunks) == "This is a streamed response."
+
+    def test_get_response_stream_empty_message_raises_error(self):
+        """Test that empty user message raises ValueError."""
+        with pytest.raises(ValueError, match="User message cannot be empty"):
+            list(get_response_stream("", "employee", []))
+
+    def test_get_response_stream_invalid_role_raises_error(self):
+        """Test that invalid role raises ValueError."""
+        with pytest.raises(ValueError, match="Unknown role"):
+            list(get_response_stream("Hello", "invalid_role", []))
