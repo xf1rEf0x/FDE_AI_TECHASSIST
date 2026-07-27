@@ -14,10 +14,10 @@ from src.sessions import (
 )
 from src.employee_service import (
     render_employee_assets,
-    render_helpdesk,
     render_software_request,
     render_user_account,
 )
+from src.ui.helpdesk_tab import render_helpdesk_tab
 from src.auth import login, logout, get_current_user, is_admin
 
 # ============================================================================
@@ -270,7 +270,7 @@ with tab_assets:
     render_employee_assets()
 
 with tab_helpdesk:
-    render_helpdesk()
+    render_helpdesk_tab(current_user.get("email"))
 
 with tab_software:
     render_software_request()

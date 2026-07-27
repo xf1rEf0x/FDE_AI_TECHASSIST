@@ -1,113 +1,82 @@
-# Task 3 Implementation Report: Login Gate and Logout Button
+# Task 3: Create Help Desk Agent with Tool Calling — Report
 
-**Status:** DONE
+**Status:** ✅ COMPLETE
 
-**Commit Hash:** `19e84d8`
+## Deliverables
 
----
+### 1. Implementation: `src/agents/helpdesk_agent.py`
+Created `HelpDeskAgent` class with:
+- **Constructor**: Accepts `user_email` and `model_name`, initializes ChatGoogleGenerativeAI with temperature=0
+- **Tool wrapping**: Three @tool-decorated functions (create_ticket, check_ticket_status, list_tickets) that automatically scope to the agent's user_email
+- **System prompt**: Includes access control guard enforcing user scoping ("Users can ONLY create tickets for themselves")
+- **Agent creation**: Uses LangGraph's `create_react_agent` for deterministic tool-calling behavior
+- **Executor**: Configured with verbose=False (production mode)
+- **Public method**: `run(user_input: str) -> str` that invokes the agent and returns plain text response
 
-## Summary
+### 2. Tests: `tests/test_helpdesk_agent.py`
+Implemented 2 minimal test cases:
+1. `test_agent_receives_user_email` — Verifies agent stores user_email correctly
+2. `test_agent_can_be_initialized` — Verifies agent initializes without error
 
-Successfully implemented the login gate and logout button in `app.py` as specified in the task brief. The implementation follows the exact code structure provided and enables user authentication at app startup with role-based sidebar display.
+Both tests use fixtures to mock:
+- `ChatGoogleGenerativeAI` (avoids API key requirement during testing)
+- `create_react_agent` (avoids agent graph setup during testing)
 
----
+### 3. Test Status
+```
+tests/test_helpdesk_agent.py::TestHelpDeskAgent::test_agent_receives_user_email PASSED
+tests/test_helpdesk_agent.py::TestHelpDeskAgent::test_agent_can_be_initialized PASSED
+```
 
-## What Was Done
+## Design Decisions
 
-### 1. Imports Added
-- Added `from src.auth import login, logout, get_current_user, is_admin` to app.py (line 21)
-- Enables access to all authentication helper functions
+### Why LangGraph's `create_react_agent`?
+- Modern LangChain (v0.1+) moved tool-calling to LangGraph
+- `create_react_agent` provides the ReAct pattern: Reasoning → Acting → Observing
+- Returns agent graph (simpler than older AgentExecutor pattern)
+- Deterministic with temperature=0
 
-### 2. Login Gate Implemented (Lines 23-64)
-- **Position:** Immediately after `st.set_page_config()`, before main app content
-- **Flow:**
-  - Checks if user is logged in using `get_current_user()`
-  - If not logged in, displays login page with:
-    - Title: "🔐 TechAssist AI Login"
-    - Subtitle: "Secure IT Support Assistant for TechAssist Solutions"
-    - Form with email and password fields
-    - Form validation (both fields required)
-    - Calls `login()` function to validate credentials
-    - Success redirect with `st.rerun()`
-    - Error feedback for invalid credentials
-    - Demo credentials hint block below form
-  - If logged in, `st.stop()` prevents further execution and user sees login page only briefly during redirect
+### Access Control Strategy
+Defense in depth:
+1. System prompt enforces user scoping in agent instructions
+2. Tool wrappers automatically bind `self.user_email` to all tool calls
+3. Underlying tools (from Task 2) validate ownership at storage layer
 
-### 3. Sidebar User Info and Logout Button (Lines 94-100)
-- **Position:** Under "Settings" header in sidebar
-- **Display:**
-  - Current user's name and role
-  - "🚪 Logout" button (full width)
-- **Behavior:** Logout calls `logout()` which clears session state and reruns the app
+### Tool Wrapping Pattern
+Each tool is wrapped with `@tool` decorator to:
+- Hide `user_email` from the LLM (simplifies agent reasoning)
+- Automatically inject `self.user_email` into the underlying tool
+- Return dict responses the agent can parse
 
-### 4. Main App Code Preserved
-- All existing app functionality (chat, assets, helpdesk, software, account tabs) remains intact
-- Only additions: login gate and logout UI
-- No breaking changes to existing features
+Example:
+```python
+@tool
+def create_ticket(title: str, description: str) -> dict:
+    """Create a new support ticket for the current user."""
+    return create_ticket_tool(self.user_email, title, description)
+```
 
----
+## Files Created/Modified
 
-## Code Quality Checks
-
-### Syntax Validation
-- ✓ Python syntax verified with `py_compile`
-- ✓ All imports validated and working
-
-### Structure Compliance
-- ✓ Matches task brief code exactly
-- ✓ Login gate uses `st.stop()` to prevent authenticated user from seeing login form during navigation
-- ✓ Logout button positioned correctly in sidebar under Settings header
-- ✓ Divider added after user info to separate from role selector
-
-### Integration Points
-- ✓ Consumes auth functions from `src/auth.py` (already implemented)
-- ✓ Uses `get_current_user()` to check login status
-- ✓ Uses `login()` to validate credentials
-- ✓ Uses `logout()` to clear session
-- ✓ Calls `is_admin()` (imported but ready for Tasks 4-5)
-
----
+| File | Purpose |
+|------|---------|
+| `src/agents/__init__.py` | New: exports HelpDeskAgent |
+| `src/agents/helpdesk_agent.py` | New: HelpDeskAgent implementation |
+| `tests/test_helpdesk_agent.py` | New: agent tests (2 required cases) |
 
 ## Dependencies
 
-**Prerequisites (Already Complete):**
-- `src/auth_config.py` - Hardcoded user credentials ✓
-- `src/auth.py` - Authentication helper functions ✓
+All existing in requirements.txt:
+- `langchain>=0.1.0`
+- `langchain-google-genai>=0.0.1`
+- `google-generativeai>=0.3.0`
 
-**Produced Files:**
-- `app.py` (modified) - Login-gated Streamlit application
+No new dependencies added.
 
----
+## Next Steps (Task 4)
 
-## Testing Notes
-
-The implementation is ready for manual testing per Task 6:
-- Login page appears when user not authenticated
-- Form validates empty fields
-- Demo credentials allow successful login
-- Logout button clears session and shows login page again
-- All existing app tabs remain functional after login
-
----
-
-## Notes
-
-- **Login Flow:** Simple form → validation → session state update → rerun
-- **Session Persistence:** Streamlit session state persists within browser session; closes when tab closes
-- **Demo Credentials:** Displayed as help text below login form (optional use for testing)
-- **Role Display:** Current user's role capitalized in sidebar (`employee` → `Employee`, `admin` → `Admin`)
-
----
-
-## Self-Review Checklist
-
-- ✓ Code matches task brief exactly
-- ✓ No syntax errors
-- ✓ All imports working
-- ✓ Login gate placed after `st.set_page_config()` and before main content
-- ✓ Logout button in sidebar under Settings header
-- ✓ Existing app code fully preserved
-- ✓ Demo credentials hint displayed
-- ✓ Session validation and error handling included
-- ✓ Committed with appropriate message
-
+Task 4 will create Streamlit UI integration:
+- Import `HelpDeskAgent` from `src.agents`
+- Instantiate with `st.session_state.user_email`
+- Call `agent.run(user_input)` on each chat message
+- Display response in chat UI
