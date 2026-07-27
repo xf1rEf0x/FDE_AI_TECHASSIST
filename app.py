@@ -17,7 +17,7 @@ from src.sessions import (
 )
 from src.ui.helpdesk_tab import render_helpdesk_tab
 from src.ui.external_services_tab import render_external_services_tab
-from src.ui.components import form_group, info_box
+from src.ui.components import form_group, info_box, status_badge, sidebar_section
 from src.auth import login, logout, get_current_user, is_admin
 
 # ============================================================================
@@ -119,76 +119,73 @@ with st.sidebar:
     current_user = get_current_user()
     if current_user:
         st.markdown(f"**Logged in as:** {current_user['name']}")
-        st.markdown(f"**Role:** {current_user['role'].capitalize()}")
+        st.markdown(status_badge(current_user['role'].capitalize(), "completed"))
         if st.button("🚪 Logout", use_container_width=True):
             logout()
 
-    st.divider()
+    # Settings section with provider and temperature controls
+    def render_settings():
+        st.session_state.provider = st.selectbox(
+            "LLM Provider:",
+            ["HuggingFace", "Gemini"],
+            index=0 if st.session_state.provider.lower() == "huggingface" else 1,
+            help="Switch between HuggingFace (DeepSeek-R1) and Gemini (Google)"
+        )
 
-    # Provider selector
-    st.session_state.provider = st.selectbox(
-        "LLM Provider:",
-        ["HuggingFace", "Gemini"],
-        index=0 if st.session_state.provider.lower() == "huggingface" else 1,
-        help="Switch between HuggingFace (DeepSeek-R1) and Gemini (Google)"
-    )
+        # Dynamic info box
+        if st.session_state.provider.lower() == "huggingface":
+            info_box("Using HuggingFace model: DeepSeek-R1", "info")
+        else:
+            info_box("Using Gemini model: gemini-pro", "info")
 
-    # Dynamic info box
-    if st.session_state.provider.lower() == "huggingface":
-        st.info("🤖 Using HuggingFace model: DeepSeek-R1")
-    else:
-        st.info("🤖 Using Gemini model: gemini-pro")
+        # Temperature slider
+        st.session_state.temperature = st.slider(
+            "Temperature:",
+            min_value=0.0,
+            max_value=2.0,
+            value=st.session_state.temperature,
+            step=0.1,
+            help="Lower = more focused/deterministic, Higher = more creative/random"
+        )
 
-    # Temperature slider
-    st.session_state.temperature = st.slider(
-        "Temperature:",
-        min_value=0.0,
-        max_value=2.0,
-        value=st.session_state.temperature,
-        step=0.1,
-        help="Lower = more focused/deterministic, Higher = more creative/random"
-    )
+    sidebar_section("⚙️ Settings", render_settings)
 
     # Show current role info
     with st.expander("ℹ️ About your role"):
         st.markdown(get_system_prompt(st.session_state.role))
 
-    st.divider()
-
     # Session history section
-    st.subheader("📋 Session History")
-
-    # List saved sessions
-    sessions = list_sessions()
-    if sessions:
-        for session_id, session_data in sessions:
-            col1, col2 = st.columns([3, 1])
-            with col1:
-                if st.button(
-                    f"🔄 {session_data['name'][:40]}",
-                    use_container_width=True,
-                    key=f"load_{session_id}"
-                ):
-                    loaded = get_session(session_id)
-                    if loaded:
-                        st.session_state.messages = loaded["messages"]
-                        st.session_state.role = loaded["role"]
-                        st.session_state.current_session_id = session_id
-                        st.success(f"✓ Loaded: {loaded['name']}")
+    def render_session_history():
+        sessions = list_sessions()
+        if sessions:
+            for session_id, session_data in sessions:
+                col1, col2 = st.columns([3, 1])
+                with col1:
+                    if st.button(
+                        f"🔄 {session_data['name'][:40]}",
+                        use_container_width=True,
+                        key=f"load_{session_id}"
+                    ):
+                        loaded = get_session(session_id)
+                        if loaded:
+                            st.session_state.messages = loaded["messages"]
+                            st.session_state.role = loaded["role"]
+                            st.session_state.current_session_id = session_id
+                            st.success(f"✓ Loaded: {loaded['name']}")
+                            st.rerun()
+                with col2:
+                    if st.button("🗑️", key=f"delete_{session_id}", help="Delete session"):
+                        delete_session(session_id)
+                        if st.session_state.current_session_id == session_id:
+                            st.session_state.current_session_id = None
+                            st.session_state.messages = []
+                        st.success("Deleted")
                         st.rerun()
-            with col2:
-                if st.button("🗑️", key=f"delete_{session_id}", help="Delete session"):
-                    delete_session(session_id)
-                    if st.session_state.current_session_id == session_id:
-                        st.session_state.current_session_id = None
-                        st.session_state.messages = []
-                    st.success("Deleted")
-                    st.rerun()
-        st.caption(f"Total: {len(sessions)} session(s)")
-    else:
-        st.caption("💬 Start a conversation to create a session")
+            st.caption(f"Total: {len(sessions)} session(s)")
+        else:
+            st.caption("💬 Start a conversation to create a session")
 
-    st.divider()
+    sidebar_section("📋 Session History", render_session_history)
 
     # Clear conversation button
     if st.button("New Chat", use_container_width=True):
