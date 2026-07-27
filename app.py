@@ -4,7 +4,6 @@ import os
 import streamlit as st
 from src.conversation import get_response, get_response_stream
 from src.prompts import get_available_roles, get_system_prompt, get_prompt_templates
-from src.config import get_gemini_model, get_available_models
 from src.utils import format_message
 from src.sessions import (
     create_session,
@@ -12,6 +11,12 @@ from src.sessions import (
     delete_session,
     list_sessions,
     update_session,
+)
+from src.employee_service import (
+    render_employee_assets,
+    render_helpdesk,
+    render_software_request,
+    render_user_account,
 )
 
 st.set_page_config(
@@ -31,8 +36,6 @@ if "messages" not in st.session_state:
 if "role" not in st.session_state:
     st.session_state.role = "employee"
 
-if "model" not in st.session_state:
-    st.session_state.model = get_gemini_model()
 
 if "template_selected" not in st.session_state:
     st.session_state.template_selected = None
@@ -61,20 +64,7 @@ with st.sidebar:
         st.session_state.messages = []
         st.info(f"✓ Switched to {selected_role} role. Chat history cleared.")
 
-    # Model selector
-    available_models = get_available_models()
-    selected_model = st.selectbox(
-        "Select AI model:",
-        available_models,
-        index=available_models.index(st.session_state.model),
-        help="Choose the Gemini model to use for responses"
-    )
-
-    # Update model if changed
-    if selected_model != st.session_state.model:
-        st.session_state.model = selected_model
-        os.environ["GEMINI_MODEL"] = selected_model
-        st.success(f"✓ Switched to {selected_model}")
+    st.info("🤖 Using HuggingFace model: DeepSeek-R1")
 
     # Temperature slider
     st.session_state.temperature = st.slider(
@@ -135,80 +125,102 @@ with st.sidebar:
         st.success("Conversation cleared!")
         st.rerun()
 
-# Display conversation history
-st.subheader("Conversation")
-for message in st.session_state.messages:
-    with st.chat_message(message["role"]):
-        st.markdown(message["content"])
+# Main content tabs
+tab_chat, tab_assets, tab_helpdesk, tab_software, tab_account = st.tabs([
+    "💬 AI Chat",
+    "🏢 Employee Assets",
+    "🎫 HelpDesk",
+    "💾 Software Request",
+    "👤 User Account"
+])
 
-# User input
-user_input = st.chat_input("Ask me anything about IT support...")
+with tab_chat:
+    # Display conversation history
+    st.subheader("Conversation")
+    for message in st.session_state.messages:
+        with st.chat_message(message["role"]):
+            st.markdown(message["content"])
 
-# Prompt templates below chat input
-if not st.session_state.messages:
-    st.markdown("**Quick questions for your role:**")
-    templates = get_prompt_templates(st.session_state.role)
-    cols = st.columns(len(templates))
-    for idx, template in enumerate(templates):
-        with cols[idx]:
-            if st.button(template, use_container_width=True, key=f"template_{idx}_{template[:10]}"):
-                st.session_state.template_selected = template
+    # User input
+    user_input = st.chat_input("Ask me anything about IT support...")
+
+    # Prompt templates below chat input
+    if not st.session_state.messages:
+        st.markdown("**Quick questions for your role:**")
+        templates = get_prompt_templates(st.session_state.role)
+        cols = st.columns(len(templates))
+        for idx, template in enumerate(templates):
+            with cols[idx]:
+                if st.button(template, use_container_width=True, key=f"template_{idx}_{template[:10]}"):
+                    st.session_state.template_selected = template
+                    st.rerun()
+
+    # Handle template selection
+    if st.session_state.template_selected and not st.session_state.messages:
+        user_input = st.session_state.template_selected
+        st.session_state.template_selected = None
+
+    if user_input:
+        # Validate input
+        if not user_input.strip():
+            st.warning("Please enter a message.")
+            st.stop()
+
+        # Add user message to history
+        user_message = format_message("user", user_input)
+        st.session_state.messages.append(user_message)
+
+        # Display user message
+        with st.chat_message("user"):
+            st.markdown(user_input)
+
+        # Get and display assistant response
+        try:
+            with st.chat_message("assistant"):
+                message_placeholder = st.empty()
+
+                # Show thinking animation
+                message_placeholder.markdown("🤔 *Thinking...*")
+
+                full_response = ""
+
+                # Use streaming to display response in real-time
+                for chunk in get_response_stream(user_input, st.session_state.role, st.session_state.messages[:-1], temperature=st.session_state.temperature):
+                    full_response += chunk
+                    message_placeholder.markdown(full_response + "▌")
+
+                # Final response without cursor
+                message_placeholder.markdown(full_response)
+
+            # Add assistant message to history
+            assistant_message = format_message("assistant", full_response)
+            st.session_state.messages.append(assistant_message)
+
+            # Auto-create session on first response if not already in a session
+            if not st.session_state.current_session_id:
+                st.session_state.current_session_id = create_session(st.session_state.role, st.session_state.messages)
+
+            # Auto-save current session
+            if st.session_state.current_session_id:
+                update_session(st.session_state.current_session_id, st.session_state.messages)
                 st.rerun()
 
-# Handle template selection
-if st.session_state.template_selected and not st.session_state.messages:
-    user_input = st.session_state.template_selected
-    st.session_state.template_selected = None
+        except ValueError as e:
+            st.error(f"❌ {e}")
+        except Exception as e:
+            error_msg = str(e)
+            st.error(f"❌ Error: {error_msg}")
+            if "API" in error_msg or "key" in error_msg.lower():
+                st.info("Please check your HuggingFace API key in `.env` and try again.")
 
-if user_input:
-    # Validate input
-    if not user_input.strip():
-        st.warning("Please enter a message.")
-        st.stop()
+with tab_assets:
+    render_employee_assets()
 
-    # Add user message to history
-    user_message = format_message("user", user_input)
-    st.session_state.messages.append(user_message)
+with tab_helpdesk:
+    render_helpdesk()
 
-    # Display user message
-    with st.chat_message("user"):
-        st.markdown(user_input)
+with tab_software:
+    render_software_request()
 
-    # Get and display assistant response
-    try:
-        with st.chat_message("assistant"):
-            message_placeholder = st.empty()
-
-            # Show thinking animation
-            message_placeholder.markdown("🤔 *Thinking...*")
-
-            full_response = ""
-
-            # Use streaming to display response in real-time
-            for chunk in get_response_stream(user_input, st.session_state.role, st.session_state.messages[:-1], st.session_state.model, st.session_state.temperature):
-                full_response += chunk
-                message_placeholder.markdown(full_response + "▌")
-
-            # Final response without cursor
-            message_placeholder.markdown(full_response)
-
-        # Add assistant message to history
-        assistant_message = format_message("assistant", full_response)
-        st.session_state.messages.append(assistant_message)
-
-        # Auto-create session on first response if not already in a session
-        if not st.session_state.current_session_id:
-            st.session_state.current_session_id = create_session(st.session_state.role, st.session_state.messages)
-
-        # Auto-save current session
-        if st.session_state.current_session_id:
-            update_session(st.session_state.current_session_id, st.session_state.messages)
-            st.rerun()
-
-    except ValueError as e:
-        st.error(f"❌ {e}")
-    except Exception as e:
-        error_msg = str(e)
-        st.error(f"❌ Error: {error_msg}")
-        if "API" in error_msg or "key" in error_msg.lower():
-            st.info("Please check your Google API key in `.env` and try again.")
+with tab_account:
+    render_user_account()

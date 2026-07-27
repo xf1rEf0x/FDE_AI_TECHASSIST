@@ -43,7 +43,7 @@ def get_response(user_message: str, role: str, history: list[dict], temperature:
     return response.content
 
 
-def get_response_stream(user_message: str, role: str, history: list[dict], model: str = None, temperature: float = 0.7):
+def get_response_stream(user_message: str, role: str, history: list[dict], temperature: float = 0.7):
     """Get streaming response from HuggingFace model via LangChain.
 
     Yields text chunks as they arrive from the API.
@@ -52,7 +52,6 @@ def get_response_stream(user_message: str, role: str, history: list[dict], model
         user_message: The user's latest message
         role: User role ("employee", "engineer", or "admin")
         history: List of previous messages (used for context, not actively consumed in this version)
-        model: Unused parameter (kept for backward compatibility with Phase 1 UI)
         temperature: Temperature for response generation (0.0 - 2.0)
 
     Yields:

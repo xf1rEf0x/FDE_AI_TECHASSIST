@@ -45,7 +45,7 @@ def create_langchain_model(temperature: float = 0.7) -> ChatHuggingFace:
 
     # Create HuggingFaceEndpoint first (the base LLM)
     hf_llm = HuggingFaceEndpoint(
-        repo_id="mistralai/Mistral-7B-Instruct-v0.1",  # ponytail: swap model name if HF inference endpoint changes
+        repo_id="deepseek-ai/DeepSeek-R1:novita",
         huggingfacehub_api_token=api_key,
         temperature=temperature,
     )
