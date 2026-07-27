@@ -5,8 +5,9 @@ import os
 import string
 import secrets
 from datetime import datetime
+from src.auth_config import USERS
 
-# Password storage file (demo-only, not production)
+# Password storage file for audit trail
 PASSWORD_LOG_FILE = "data/passwords.json"
 
 
@@ -42,6 +43,24 @@ def _generate_temporary_password(length: int = 12) -> str:
     return "".join(secrets.choice(chars) for _ in range(length))
 
 
+def _update_user_password(user_email: str, new_password: str) -> bool:
+    """
+    Update user password in auth_config.py.
+
+    Args:
+        user_email: Email of the user
+        new_password: New password to set
+
+    Returns:
+        True if successful, False if user not found
+    """
+    if user_email not in USERS:
+        return False
+
+    USERS[user_email]["password"] = new_password
+    return True
+
+
 def reset_password_tool(user_email: str) -> dict:
     """
     Reset a user's password and return temporary password.
@@ -51,18 +70,27 @@ def reset_password_tool(user_email: str) -> dict:
 
     Returns:
         dict with keys:
-            - status: "success"
-            - new_password: The generated temporary password
+            - status: "success" or "error"
+            - new_password: The generated temporary password (if success)
             - message: Human-readable confirmation message
     """
+    if user_email not in USERS:
+        return {
+            "status": "error",
+            "message": f"User {user_email} not found.",
+        }
+
     new_password = _generate_temporary_password()
 
-    # Log the reset for demo purposes
+    # Update actual user password in auth_config
+    _update_user_password(user_email, new_password)
+
+    # Log the reset for audit trail
     log = _load_password_log()
     log["resets"].append({
         "user_email": user_email,
         "timestamp": datetime.now().isoformat(),
-        "password": new_password,  # Demo-only; never store in production
+        "password": new_password,
     })
     _save_password_log(log)
 

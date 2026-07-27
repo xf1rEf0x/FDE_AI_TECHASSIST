@@ -4,6 +4,7 @@ import json
 import os
 import pytest
 from src.tools.password_tools import reset_password_tool, _generate_temporary_password
+from src.auth_config import USERS
 
 
 def test_generate_temporary_password():
@@ -22,7 +23,7 @@ def test_generate_temporary_password_uniqueness():
 
 def test_reset_password_tool_returns_valid_response():
     """Test that reset_password_tool returns expected response structure."""
-    result = reset_password_tool("test@techassist.com")
+    result = reset_password_tool("alice@techassist.com")
 
     assert isinstance(result, dict)
     assert "status" in result
@@ -32,9 +33,29 @@ def test_reset_password_tool_returns_valid_response():
     assert len(result["new_password"]) == 12
 
 
+def test_reset_password_tool_updates_user_password():
+    """Test that password reset actually updates the user's password in USERS."""
+    test_email = "bob@techassist.com"
+    old_password = USERS[test_email]["password"]
+
+    result = reset_password_tool(test_email)
+
+    assert result["status"] == "success"
+    assert USERS[test_email]["password"] == result["new_password"]
+    assert USERS[test_email]["password"] != old_password
+
+
+def test_reset_password_tool_fails_for_nonexistent_user():
+    """Test that resetting password for nonexistent user returns error."""
+    result = reset_password_tool("nonexistent@techassist.com")
+
+    assert result["status"] == "error"
+    assert "not found" in result["message"]
+
+
 def test_reset_password_tool_logs_to_file():
     """Test that password reset is logged to JSON file."""
-    test_email = "logging_test@techassist.com"
+    test_email = "carol@techassist.com"
 
     # Ensure file doesn't exist first
     if os.path.exists("data/passwords.json"):
