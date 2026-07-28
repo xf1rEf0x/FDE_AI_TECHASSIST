@@ -3,7 +3,11 @@
 from datetime import date
 from langchain_core.tools import tool
 
-from src.tools.asset_search_tool import search_assets_by_employee, search_assets_by_serial
+from src.tools.asset_search_tool import (
+    search_assets_by_employee,
+    search_assets_by_serial,
+    search_assets_by_type,
+)
 
 
 def _warranty_status(expiry: str | None) -> str:
@@ -37,6 +41,13 @@ def check_asset_warranty(query: str, user_id: str = None, is_admin: bool = False
     results = search_assets_by_employee(query, user_id=user_id, is_admin=is_admin)
     if not results:
         results = search_assets_by_serial(query, user_id=user_id, is_admin=is_admin)
+
+    # If still no results and this is a non-admin's own scoped search (e.g. the
+    # query was their email/user ID rather than their name), fall back to all
+    # of their own assets — the user_id scoping already narrows this to them.
+    # Mirrors search_employee_assets's fallback in asset_search_tool.py.
+    if not results and user_id and not is_admin:
+        results = search_assets_by_type("", user_id=user_id, is_admin=is_admin)
 
     if not results:
         return f"No asset found matching '{query}'."
