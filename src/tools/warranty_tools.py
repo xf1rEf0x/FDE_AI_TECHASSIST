@@ -6,11 +6,20 @@ from langchain_core.tools import tool
 from src.tools.asset_search_tool import search_assets_by_employee, search_assets_by_serial
 
 
-def _is_active(expiry: str | None) -> bool:
-    """Return True if the given ISO date string is today or later."""
+def _warranty_status(expiry: str | None) -> str:
+    """Classify an ISO date string as ACTIVE, EXPIRED, or UNKNOWN.
+
+    UNKNOWN covers both a missing expiry date and one that isn't a valid
+    ISO date string, so a malformed value degrades gracefully instead of
+    raising.
+    """
     if not expiry:
-        return False
-    return date.fromisoformat(expiry) >= date.today()
+        return "UNKNOWN"
+    try:
+        parsed = date.fromisoformat(expiry)
+    except ValueError:
+        return "UNKNOWN"
+    return "ACTIVE" if parsed >= date.today() else "EXPIRED"
 
 
 @tool
@@ -23,7 +32,7 @@ def check_asset_warranty(query: str, user_id: str = None, is_admin: bool = False
         is_admin: Whether the current user is admin (bypasses user_id filter).
 
     Returns:
-        Formatted string reporting ACTIVE/EXPIRED status per matching asset.
+        Formatted string reporting ACTIVE/EXPIRED/UNKNOWN status per matching asset.
     """
     results = search_assets_by_employee(query, user_id=user_id, is_admin=is_admin)
     if not results:
@@ -35,9 +44,14 @@ def check_asset_warranty(query: str, user_id: str = None, is_admin: bool = False
     lines = []
     for asset in results:
         expiry = asset.get("warranty_end") or asset.get("expiry_date")
-        status = "ACTIVE" if _is_active(expiry) else "EXPIRED"
+        status = _warranty_status(expiry)
         label = asset.get("model") or asset.get("name") or asset.get("asset_id")
-        expiry_note = f"expires {expiry}" if expiry else "no expiry date on file"
+        if status != "UNKNOWN":
+            expiry_note = f"expires {expiry}"
+        elif expiry:
+            expiry_note = f"invalid expiry date on file: {expiry}"
+        else:
+            expiry_note = "no expiry date on file"
         lines.append(f"{asset['asset_id']} ({label}): warranty/license {status} ({expiry_note})")
 
     return "\n".join(lines)
