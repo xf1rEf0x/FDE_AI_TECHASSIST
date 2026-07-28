@@ -150,12 +150,12 @@ def message_container(content: str, role: str, timestamp: Optional[str] = None, 
         content: Message text (markdown)
         role: One of "user", "assistant", "system"
         timestamp: Optional timestamp string
-        metadata: Optional dict with "agent" (str), "tools" (list), "mcp" (list),
-            "rag" (list), "model" (str), "provider" (str), and "tokens"
-            (dict with input_tokens/output_tokens/total_tokens) — only the
-            components actually used in this reply appear in the summary line,
-            with full details (including model/provider/token usage) in the
-            hover tooltip
+        metadata: Optional dict with "agent" (str), "agents" (list of sub-agents
+            delegated to this turn), "tools" (list), "mcp" (list), "rag" (list),
+            "model" (str), "provider" (str), and "tokens" (dict with
+            input_tokens/output_tokens/total_tokens) — only the components
+            actually used in this reply appear in the summary line, with full
+            details (including model/provider/token usage) in the hover tooltip
     """
     if role == "user":
         st.chat_message("user").markdown(content)
@@ -170,6 +170,11 @@ def message_container(content: str, role: str, timestamp: Optional[str] = None, 
                 if agent:
                     labels.append("Agent")
                     tips.append(f"Agent: {agent}")
+
+                agents_used = metadata.get("agents") or []
+                if agents_used:
+                    labels.append("Agents")
+                    tips.append(f"Agents used: {', '.join(agents_used)}")
 
                 tools = metadata.get("tools") or []
                 if tools:

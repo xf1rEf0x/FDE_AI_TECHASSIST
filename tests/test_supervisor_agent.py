@@ -94,7 +94,7 @@ def test_ticket_is_only_created_after_explicit_confirmation(monkeypatch):
     monkeypatch.setattr(
         SupervisorAgent,
         "_build_llm",
-        lambda self, provider, model_name, temperature: (mock_llm, "gemini-3.5-flash-lite"),
+        lambda self, provider, model_name, temperature: (mock_llm, "gemini-3.1-flash-lite"),
     )
 
     supervisor = SupervisorAgent("alice.johnson@techassist.com", "employee", employee_id="EMP001")
@@ -115,3 +115,32 @@ def test_ticket_is_only_created_after_explicit_confirmation(monkeypatch):
         "Created ticket tkt-1 for a VPN connection issue on the company laptop.",
         "tkt-1",
     )
+
+
+def test_on_progress_reports_delegated_agents_in_order(monkeypatch):
+    responses = [
+        _tool_call_message("analyze_support_request", {"user_message": "VPN issue"}, "t1"),
+        AIMessage(content="Here's what I found."),
+    ]
+
+    llm_with_tools = MagicMock()
+    llm_with_tools.invoke.side_effect = responses
+    mock_llm = MagicMock()
+    mock_llm.bind_tools.return_value = llm_with_tools
+    mock_llm.with_structured_output.return_value.invoke.return_value = RequestAnalysis(
+        issue="VPN Connection", device="Company Laptop", action="Diagnose"
+    )
+
+    monkeypatch.setattr(
+        SupervisorAgent,
+        "_build_llm",
+        lambda self, provider, model_name, temperature: (mock_llm, "gemini-3.5-flash-lite"),
+    )
+
+    supervisor = SupervisorAgent("alice.johnson@techassist.com", "employee", employee_id="EMP001")
+
+    progress_labels = []
+    supervisor.invoke("My VPN is broken", on_progress=progress_labels.append)
+
+    assert progress_labels == ["Supervisor Agent", "Request Analysis Agent", "Supervisor Agent"]
+    assert supervisor.last_agents_used == ["Supervisor Agent", "Request Analysis Agent"]

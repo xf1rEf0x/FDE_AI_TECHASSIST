@@ -231,7 +231,11 @@ with tab_chat:
     # render below the input instead of in the chat history).
     if len(st.session_state.messages) > 0 and st.session_state.messages[-1]["role"] == "user":
         try:
-            with st.spinner("🤔 Thinking..." if st.session_state.agent else "⚙️ Starting up assistant (first message only)..."):
+            starting_up = st.session_state.agent is None
+            with st.status(
+                "⚙️ Starting up assistant (first message only)..." if starting_up else "🤖 Supervisor Agent working...",
+                expanded=False,
+            ) as status:
                 # Initialize agent for this session if not already done
                 if st.session_state.agent is None:
                     st.session_state.agent = get_agent_instance(
@@ -242,14 +246,21 @@ with tab_chat:
                         employee_id=current_user["employee_id"]
                     )
 
+                def _on_progress(agent_label, _status=status):
+                    _status.update(label=f"🤖 {agent_label} working...")
+
                 # Get response from agent (has its own memory)
-                full_response = st.session_state.agent.invoke(st.session_state.messages[-1]["content"])
+                full_response = st.session_state.agent.invoke(
+                    st.session_state.messages[-1]["content"], on_progress=_on_progress
+                )
+                status.update(label="✅ Done", state="complete")
 
             # Add assistant message to history (for Streamlit display only)
             reply_metadata = {
                 "tools": st.session_state.agent.last_tools_used,
                 "rag": st.session_state.agent.last_rag_used,
                 "agent": st.session_state.agent.agent_name,
+                "agents": getattr(st.session_state.agent, "last_agents_used", []),
                 "model": st.session_state.agent.model_name,
                 "provider": st.session_state.agent.provider_label,
                 "tokens": st.session_state.agent.last_token_usage,

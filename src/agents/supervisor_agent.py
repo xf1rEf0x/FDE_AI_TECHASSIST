@@ -24,6 +24,11 @@ class SupervisorAgent:
     """
 
     PROVIDER_LABELS = {"google": "Google Gemini", "huggingface": "HuggingFace"}
+    AGENT_TOOL_LABELS = {
+        "analyze_support_request": "Request Analysis Agent",
+        "asset_and_ticket_support": "Asset & Support Agent",
+        "notify_user": "Notification Agent",
+    }
 
     def __init__(
         self,
@@ -44,6 +49,8 @@ class SupervisorAgent:
         self.last_tools_used = []
         self.last_rag_used = []
         self.last_token_usage = None
+        self.last_agents_used = []
+        self._on_progress = lambda label: None
 
         self.llm, self.model_name = self._build_llm(provider, model_name, temperature)
         self.memory = InMemoryChatMessageHistory()
@@ -61,7 +68,7 @@ class SupervisorAgent:
         if provider != "google":
             raise ValueError(f"Unknown provider: {provider}")
 
-        resolved_model = model_name or "gemini-3.5-flash-lite"
+        resolved_model = model_name or "gemini-3.1-flash-lite"
         return ChatGoogleGenerativeAI(model=resolved_model, temperature=temperature), resolved_model
 
     def _define_tools(self) -> list:
@@ -77,7 +84,9 @@ class SupervisorAgent:
             """Extract issue type, device, and required action from a free-form IT
             support request. Call this first for new device/VPN/hardware issues before
             looking anything up."""
+            self._on_progress(self.AGENT_TOOL_LABELS["analyze_support_request"])
             result = analyze_request(llm, user_message)
+            self._on_progress("Supervisor Agent")
             return result.model_dump_json()
 
         @tool
@@ -87,7 +96,10 @@ class SupervisorAgent:
             (e.g. 'look up the asset and check warranty, do not create a ticket yet'
             or 'the user confirmed, create the ticket now'). `context` carries the
             relevant details gathered so far (issue, device, prior findings)."""
-            return run_asset_support_agent(llm, user_email, employee_id, is_admin, instruction, context)
+            self._on_progress(self.AGENT_TOOL_LABELS["asset_and_ticket_support"])
+            result = run_asset_support_agent(llm, user_email, employee_id, is_admin, instruction, context)
+            self._on_progress("Supervisor Agent")
+            return result
 
         @tool
         def notify_user(instruction: str, context: str = "") -> str:
@@ -96,7 +108,10 @@ class SupervisorAgent:
             `instruction` e.g. 'preview these ticket details and ask for confirmation'
             or 'the user confirmed and the ticket is created, generate the summary'.
             `context` carries the relevant details to present or summarize."""
-            return run_notification_agent(llm, user_email, instruction, context)
+            self._on_progress(self.AGENT_TOOL_LABELS["notify_user"])
+            result = run_notification_agent(llm, user_email, instruction, context)
+            self._on_progress("Supervisor Agent")
+            return result
 
         return base_tools + [analyze_support_request, asset_and_ticket_support, notify_user]
 
@@ -170,8 +185,17 @@ their own tickets and requests; admins can view/approve requests from all users.
 
 Always prioritize user needs while maintaining security and access control."""
 
-    def invoke(self, user_input: str) -> str:
-        """Run the supervisor with user input and return the response text."""
+    def invoke(self, user_input: str, on_progress: callable = None) -> str:
+        """Run the supervisor with user input and return the response text.
+
+        Args:
+            on_progress: optional callback invoked with a friendly agent name
+                (e.g. "Supervisor Agent", "Asset & Support Agent") each time
+                work moves to a different agent, for live status display.
+        """
+        self._on_progress = on_progress or (lambda label: None)
+        self._on_progress("Supervisor Agent")
+
         self.memory.add_user_message(user_input)
         history = self.memory.messages
 
@@ -196,6 +220,13 @@ Always prioritize user needs while maintaining security and access control."""
             tc["args"].get("query") for tc in tool_calls_made if tc["name"] == "search_knowledge_base"
         ]
         self.last_token_usage = result["token_usage"]
+
+        agents_used = ["Supervisor Agent"]
+        for tc in tool_calls_made:
+            label = self.AGENT_TOOL_LABELS.get(tc["name"])
+            if label and label not in agents_used:
+                agents_used.append(label)
+        self.last_agents_used = agents_used
 
         self.memory.add_ai_message(response_text)
         return response_text
