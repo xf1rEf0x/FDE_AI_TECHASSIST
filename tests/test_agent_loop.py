@@ -43,6 +43,20 @@ def test_executes_tool_call_and_feeds_result_back():
     assert result["tool_calls"] == [{"name": "add_one", "args": {"n": 4}}]
 
 
+def test_tool_call_missing_id_does_not_crash():
+    """Some providers may omit tool_call['id']; ToolMessage must not raise on None."""
+    tool_call_response = AIMessage(
+        content="",
+        tool_calls=[{"name": "add_one", "args": {"n": 4}, "id": None}],
+    )
+    final_response = AIMessage(content="The answer is 5")
+    llm = _mock_llm([tool_call_response, final_response])
+
+    result = run_tool_calling_loop(llm, [add_one], "system prompt", [("user", "add one to 4")])
+
+    assert result["text"] == "The answer is 5"
+
+
 def test_unknown_tool_name_reports_error_without_crashing():
     tool_call_response = AIMessage(
         content="",
@@ -63,7 +77,26 @@ def test_stops_at_max_iterations():
         tool_calls=[{"name": "add_one", "args": {"n": 1}, "id": "call-x"}],
     )
     llm = _mock_llm([looping_response] * 10)
+    llm.invoke.return_value = AIMessage(content="I couldn't finish in time.")
 
     result = run_tool_calling_loop(llm, [add_one], "system prompt", [("user", "go")], max_iterations=3)
 
     assert len(result["tool_calls"]) == 3
+
+
+def test_max_iterations_truncation_forces_plain_final_call():
+    """When max_iterations is exhausted while a tool call is still pending, the
+    loop must not silently return empty text — it should make one more plain
+    (non-tool-bound) call and surface that as the response."""
+    looping_response = AIMessage(
+        content="",
+        tool_calls=[{"name": "add_one", "args": {"n": 1}, "id": "call-x"}],
+    )
+    llm = _mock_llm([looping_response] * 10)
+    llm.invoke.return_value = AIMessage(content="Ran out of turns; here's what I found so far.")
+
+    result = run_tool_calling_loop(llm, [add_one], "system prompt", [("user", "go")], max_iterations=3)
+
+    assert result["text"] == "Ran out of turns; here's what I found so far."
+    assert result["text"] != ""
+    llm.invoke.assert_called_once()

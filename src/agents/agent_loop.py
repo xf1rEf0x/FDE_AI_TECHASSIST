@@ -94,10 +94,22 @@ def run_tool_calling_loop(
                 except Exception as e:
                     result = f"Error: {e}"
             tool_calls_made.append({"name": tool_call["name"], "args": tool_call["args"]})
-            convo.append(ToolMessage(content=str(result), tool_call_id=tool_call["id"]))
+            convo.append(
+                ToolMessage(content=str(result), tool_call_id=tool_call.get("id") or "")
+            )
+
+    text = extract_text(response) if response is not None else ""
+    if response is not None and getattr(response, "tool_calls", None):
+        # max_iterations was exhausted while the model still wanted to call a
+        # tool, so `response.content` (and thus `text`) is typically empty.
+        # Make one more plain (non-tool-bound) call so the model is forced to
+        # summarize in natural language instead of returning a blank reply.
+        final_response = llm.invoke(convo)
+        usages.append(_extract_usage(final_response))
+        text = extract_text(final_response)
 
     return {
-        "text": extract_text(response) if response is not None else "",
+        "text": text,
         "tool_calls": tool_calls_made,
         "token_usage": _sum_usage(usages),
     }
