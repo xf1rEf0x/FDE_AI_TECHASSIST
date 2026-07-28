@@ -90,7 +90,7 @@ class TechAssistAgent:
         """Build the chat model for the selected provider. Returns (llm, resolved_model_name)."""
         if provider == "huggingface":
             repo_id = model_name or os.getenv(
-                "HUGGINGFACE_MODEL", "HuggingFaceH4/zephyr-7b-beta"
+                "HUGGINGFACE_MODEL", "mistralai/Mistral-7B-Instruct-v0.2"
             )
             endpoint = HuggingFaceEndpoint(repo_id=repo_id, temperature=temperature or 0.01)
             return ChatHuggingFace(llm=endpoint), repo_id
@@ -98,7 +98,7 @@ class TechAssistAgent:
         if provider != "google":
             raise ValueError(f"Unknown provider: {provider}")
 
-        resolved_model = model_name or "gemini-3.1-flash-lite"
+        resolved_model = model_name or "gemini-3.5-flash-lite"
         return ChatGoogleGenerativeAI(
             model=resolved_model,
             temperature=temperature,
