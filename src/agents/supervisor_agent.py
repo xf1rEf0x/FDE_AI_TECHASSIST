@@ -122,6 +122,10 @@ bullet/numbered lists, ### headers for sections, > for notes, tables for structu
 For requests that describe a device problem, possibly needing a ticket and/or a warranty
 check (e.g. "my laptop won't connect to VPN, create a ticket and check my warranty"):
 
+0. For technical/connectivity issues (VPN, password/account trouble, connectivity, etc.),
+   ALWAYS call search_knowledge_base(query) first. If it returns relevant documentation,
+   answer using that information and stop there. Only continue into the steps below if
+   the knowledge base doesn't resolve the issue or the user still wants a ticket created.
 1. Call analyze_support_request(user_message) to extract issue/device/action.
 2. If a ticket may be needed, call asset_and_ticket_support with an instruction to look
    up the asset and check warranty ONLY — do not ask it to create a ticket yet.
@@ -147,7 +151,18 @@ KNOWLEDGE BASE: search_knowledge_base(query)
 
 For reset_password, create_ticket (direct tool), and request_software: NEVER call the
 tool in the same turn where you present its preview. Always show the template first and
-wait for a separate follow-up confirmation.
+wait for a separate follow-up confirmation. Use this template format:
+   ### Ticket Preview
+   **Title:** ...
+   **Description:** ...
+   (or, for software requests)
+   ### Software Request Preview
+   **Software:** ...
+   **Version:** ...
+   **Justification:** ...
+
+For account unlocks (admin only, unlock_account): clarify the target email first if not
+already given, then call the tool once you have it.
 
 ==== ACCESS CONTROL ====
 All operations are automatically scoped to {self.user_email}. Employees can only manage
