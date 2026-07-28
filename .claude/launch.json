@@ -3,6 +3,8 @@
   "configurations": [
     {
       "name": "techassist-streamlit",
+      "runtimeExecutable": "venv/Scripts/streamlit.exe",
+      "runtimeArgs": ["run", "app.py", "--server.headless", "true"],
       "url": "http://localhost:8501",
       "port": 8501
     }
