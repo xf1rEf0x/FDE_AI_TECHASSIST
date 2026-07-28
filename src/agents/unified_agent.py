@@ -1,7 +1,14 @@
-"""TechAssistAgent: Unified LangChain agent for all IT support operations.
+"""Helpdesk tool definitions, shared by the Supervisor and the standalone Phase 2 agent.
 
-Pure LangChain tool-calling agent (no LangGraph) with ConversationBufferMemory.
-Consolidates ticket, software, password, and asset tools with role-based access control.
+Defines `build_helpdesk_tools`, the shared tool-definition function used by
+`SupervisorAgent` (`src/agents/supervisor_agent.py`) to build its Phase 2 tools
+(tickets, password, software, asset lookup, knowledge base).
+
+Also defines `TechAssistAgent`, a standalone single-round Phase 2 agent built on
+those same tools: a pure LangChain tool-calling agent (no LangGraph) with
+ConversationBufferMemory, consolidating ticket, software, password, and asset
+tools with role-based access control. Not currently wired into the app, but
+kept as a fully working standalone agent.
 """
 
 import os

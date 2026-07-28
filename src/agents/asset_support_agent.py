@@ -16,6 +16,10 @@ issue and device.
 - Use check_warranty to determine whether its warranty or license is still active.
 - Use create_ticket to create a support ticket.
 
+When reporting warranty status, quote the check_warranty tool's verdict verbatim \
+(ACTIVE / EXPIRED / UNKNOWN) rather than inferring or restating status from the date \
+yourself.
+
 HARD RULE: only call create_ticket if the instruction explicitly states the user has \
 confirmed ticket creation. If the instruction only asks you to look up the asset and/or \
 warranty, do NOT call create_ticket under any circumstances.
