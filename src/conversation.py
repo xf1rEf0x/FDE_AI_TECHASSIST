@@ -1,6 +1,6 @@
-"""Conversation handler using unified LangChain agent."""
+"""Conversation handler using the multi-agent Supervisor."""
 
-from src.agents.unified_agent import TechAssistAgent
+from src.agents.supervisor_agent import SupervisorAgent
 from src.prompts import get_available_roles
 
 
@@ -10,8 +10,8 @@ def get_agent_instance(
     temperature: float = 0.0,
     provider: str = "google",
     employee_id: str = None,
-) -> TechAssistAgent:
-    """Get a TechAssistAgent instance.
+) -> SupervisorAgent:
+    """Get a SupervisorAgent instance.
 
     Args:
         user_email: User's email
@@ -21,9 +21,9 @@ def get_agent_instance(
         employee_id: User's employee ID, used to scope asset lookups
 
     Returns:
-        TechAssistAgent instance with memory
+        SupervisorAgent instance with memory
     """
     if role not in get_available_roles():
         raise ValueError(f"Unknown role: {role}")
 
-    return TechAssistAgent(user_email, role, temperature, provider=provider, employee_id=employee_id)
+    return SupervisorAgent(user_email, role, temperature, provider=provider, employee_id=employee_id)
