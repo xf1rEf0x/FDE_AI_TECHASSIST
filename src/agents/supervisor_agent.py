@@ -90,9 +90,12 @@ class SupervisorAgent:
             """Extract issue type, device, and required action from a free-form IT
             support request. Call this first for new device/VPN/hardware issues before
             looking anything up."""
-            self._on_progress(self.AGENT_TOOL_LABELS["analyze_support_request"])
+            # No self._on_progress(...) here: LangGraph's ToolNode runs tool calls on a
+            # worker thread (even with max_concurrency=1), which lacks Streamlit's
+            # ScriptRunContext — calling a Streamlit widget API from here raises
+            # streamlit.errors.NoSessionContext. Progress is reported from invoke()'s
+            # main-thread streaming loop instead, based on the graph's state.
             result = analyze_request(llm, user_message)
-            self._on_progress("Supervisor Agent")
             return result.model_dump_json()
 
         @tool
@@ -102,9 +105,7 @@ class SupervisorAgent:
             (e.g. 'look up the asset and check warranty, do not create a ticket yet'
             or 'the user confirmed, create the ticket now'). `context` carries the
             relevant details gathered so far (issue, device, prior findings)."""
-            self._on_progress(self.AGENT_TOOL_LABELS["asset_and_ticket_support"])
             result = run_asset_support_agent(llm, user_email, employee_id, is_admin, instruction, context)
-            self._on_progress("Supervisor Agent")
             return result
 
         @tool
@@ -114,9 +115,7 @@ class SupervisorAgent:
             `instruction` e.g. 'preview these ticket details and ask for confirmation'
             or 'the user confirmed and the ticket is created, generate the summary'.
             `context` carries the relevant details to present or summarize."""
-            self._on_progress(self.AGENT_TOOL_LABELS["notify_user"])
             result = run_notification_agent(llm, user_email, instruction, context)
-            self._on_progress("Supervisor Agent")
             return result
 
         return base_tools + [analyze_support_request, asset_and_ticket_support, notify_user]
@@ -250,10 +249,29 @@ Always prioritize user needs while maintaining security and access control."""
             # we still have the last fully-accumulated state (tool calls/results
             # made so far) instead of losing the whole turn — there's no
             # checkpointer to recover partial state from otherwise.
+            last_label = "Supervisor Agent"
             for last_state in self.graph.stream(
                 {"messages": input_messages}, config=graph_config, stream_mode="values"
             ):
-                pass
+                # Report progress here, on the main thread — not inside the
+                # delegation tools themselves, which LangGraph's ToolNode runs
+                # on a worker thread lacking Streamlit's session context.
+                latest = last_state["messages"][-1]
+                label = "Supervisor Agent"
+                if isinstance(latest, AIMessage) and latest.tool_calls:
+                    delegate_label = next(
+                        (
+                            self.AGENT_TOOL_LABELS[tc["name"]]
+                            for tc in latest.tool_calls
+                            if tc["name"] in self.AGENT_TOOL_LABELS
+                        ),
+                        None,
+                    )
+                    if delegate_label:
+                        label = delegate_label
+                if label != last_label:
+                    self._on_progress(label)
+                    last_label = label
             new_messages = last_state["messages"][len(input_messages):]
         except GraphRecursionError:
             # Iteration cap hit while the model still wanted to call a tool —
