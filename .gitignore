@@ -22,3 +22,4 @@ SLIDES.md
 .superpowers/
 streamlit.log
 rag/
+venv/
