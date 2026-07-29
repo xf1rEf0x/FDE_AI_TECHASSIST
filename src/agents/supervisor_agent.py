@@ -243,18 +243,24 @@ Always prioritize user needs while maintaining security and access control."""
         messages.append(("user", user_input))
 
         input_messages = self._to_base_messages(messages)
+        graph_config = {"recursion_limit": 2 * self.max_iterations + 1, "max_concurrency": 1}
+        last_state = {"messages": input_messages}
         try:
-            graph_result = self.graph.invoke(
-                {"messages": input_messages},
-                config={"recursion_limit": 2 * self.max_iterations + 1},
-            )
-            new_messages = graph_result["messages"][len(input_messages):]
+            # Stream (not invoke) so that if GraphRecursionError fires mid-turn,
+            # we still have the last fully-accumulated state (tool calls/results
+            # made so far) instead of losing the whole turn — there's no
+            # checkpointer to recover partial state from otherwise.
+            for last_state in self.graph.stream(
+                {"messages": input_messages}, config=graph_config, stream_mode="values"
+            ):
+                pass
+            new_messages = last_state["messages"][len(input_messages):]
         except GraphRecursionError:
             # Iteration cap hit while the model still wanted to call a tool —
             # same fallback agent_loop.run_tool_calling_loop uses: one more
             # plain (non-tool-bound) call so the model returns natural-language
             # text instead of leaving the turn empty.
-            new_messages = []
+            new_messages = last_state["messages"][len(input_messages):]
 
         tool_calls_made = [
             {"name": tc["name"], "args": tc["args"]}

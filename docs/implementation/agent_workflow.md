@@ -8,19 +8,29 @@ the Phase 3 multi-agent system.
 
 The Supervisor is not a separate router process — it's a single LLM with
 function-calling ([supervisor_agent.py](../../src/agents/supervisor_agent.py)),
-where the other agents are wired in as ordinary tools:
+where the other agents are wired in as ordinary tools. The Supervisor's own
+agent↔tools loop is a hand-built two-node LangGraph `StateGraph`, compiled
+once in `SupervisorAgent.__init__` via `_build_graph()` and invoked fresh on
+each turn (no checkpointer — conversation memory is still owned entirely by
+`SupervisorAgent.memory`). An `agent` node calls
+`self.llm_with_tools.invoke(...)` (bound once in `__init__`), a `tools` node
+is a plain `langgraph.prebuilt.ToolNode`, and `tools_condition` routes
+between them, looping `tools -> agent` until the model returns plain text
+with no further tool calls:
 
 ```
-app.py -> SupervisorAgent.invoke() -> run_tool_calling_loop() (LLM <-> tools loop)
+app.py -> SupervisorAgent.invoke() -> LangGraph StateGraph (agent <-> tools loop)
                                           |-- analyze_support_request  (= Request Analysis Agent)
                                           |-- asset_and_ticket_support (= Asset & Support Agent)
                                           `-- notify_user              (= Notification Agent)
 ```
 
-`run_tool_calling_loop` ([agent_loop.py](../../src/agents/agent_loop.py)) repeatedly
-asks the LLM for a response, executes any tool calls it makes, feeds the
-results back in, and repeats (up to `max_iterations`) until the model returns
-plain text with no further tool calls.
+The two sub-agents (Asset & Support, Notification) are unaffected by this —
+each still runs its own independent instance of the original hand-rolled
+`run_tool_calling_loop` ([agent_loop.py](../../src/agents/agent_loop.py)),
+which repeatedly asks the LLM for a response, executes any tool calls it
+makes, feeds the results back in, and repeats (up to `max_iterations`) until
+the model returns plain text with no further tool calls.
 
 Each delegation tool brackets its call with a progress callback
 (`self._on_progress(...)`) so the UI can show a live "`<Agent>` working..."
