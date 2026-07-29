@@ -5,11 +5,14 @@ import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langchain_core.tools import tool
-from langchain_core.messages import HumanMessage, AIMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
 from langchain_core.chat_history import InMemoryChatMessageHistory
+from langgraph.graph import StateGraph, MessagesState, END
+from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.errors import GraphRecursionError
 
 from src.agents.unified_agent import build_helpdesk_tools, rag_retriever
-from src.agents.agent_loop import run_tool_calling_loop
+from src.agents.agent_loop import extract_text, _extract_usage, _sum_usage
 from src.agents.request_analysis_agent import analyze_request
 from src.agents.asset_support_agent import run_asset_support_agent
 from src.agents.notification_agent import run_notification_agent
@@ -55,6 +58,9 @@ class SupervisorAgent:
         self.llm, self.model_name = self._build_llm(provider, model_name, temperature)
         self.memory = InMemoryChatMessageHistory()
         self.tools = self._define_tools()
+        self.max_iterations = 6
+        self.llm_with_tools = self.llm.bind_tools(self.tools)
+        self.graph = self._build_graph()
 
     def _build_llm(self, provider: str, model_name: str, temperature: float):
         """Build the chat model for the selected provider. Returns (llm, resolved_model_name)."""
@@ -185,6 +191,35 @@ their own tickets and requests; admins can view/approve requests from all users.
 
 Always prioritize user needs while maintaining security and access control."""
 
+    def _build_graph(self):
+        """Two-node LangGraph loop equivalent to the old run_tool_calling_loop:
+        an `agent` node calls the (already tool-bound) LLM, a `tools` node
+        executes any tool calls, looping until the model stops calling tools."""
+        system_prompt = self._create_system_prompt()
+
+        def call_model(state):
+            response = self.llm_with_tools.invoke([SystemMessage(system_prompt)] + state["messages"])
+            return {"messages": [response]}
+
+        graph = StateGraph(MessagesState)
+        graph.add_node("agent", call_model)
+        graph.add_node("tools", ToolNode(self.tools))
+        graph.set_entry_point("agent")
+        graph.add_conditional_edges("agent", tools_condition)
+        graph.add_edge("tools", "agent")
+        return graph.compile()
+
+    def _to_base_messages(self, messages: list) -> list:
+        """Convert (role, content) tuples to BaseMessage instances for the graph."""
+        converted = []
+        for msg in messages:
+            if isinstance(msg, tuple):
+                role, content = msg
+                converted.append(HumanMessage(content) if role == "user" else AIMessage(content))
+            else:
+                converted.append(msg)
+        return converted
+
     def invoke(self, user_input: str, on_progress: callable = None) -> str:
         """Run the supervisor with user input and return the response text.
 
@@ -207,11 +242,37 @@ Always prioritize user needs while maintaining security and access control."""
                 messages.append(("assistant", msg.content))
         messages.append(("user", user_input))
 
-        result = run_tool_calling_loop(
-            self.llm, self.tools, self._create_system_prompt(), messages, max_iterations=6
+        input_messages = self._to_base_messages(messages)
+        try:
+            graph_result = self.graph.invoke(
+                {"messages": input_messages},
+                config={"recursion_limit": 2 * self.max_iterations + 1},
+            )
+            new_messages = graph_result["messages"][len(input_messages):]
+        except GraphRecursionError:
+            # Iteration cap hit while the model still wanted to call a tool —
+            # same fallback agent_loop.run_tool_calling_loop uses: one more
+            # plain (non-tool-bound) call so the model returns natural-language
+            # text instead of leaving the turn empty.
+            new_messages = []
+
+        tool_calls_made = [
+            {"name": tc["name"], "args": tc["args"]}
+            for msg in new_messages
+            if isinstance(msg, AIMessage)
+            for tc in (msg.tool_calls or [])
+        ]
+
+        last_ai_message = next(
+            (m for m in reversed(new_messages) if isinstance(m, AIMessage)), None
         )
-        response_text = result["text"]
-        tool_calls_made = result["tool_calls"]
+        if last_ai_message is not None and not last_ai_message.tool_calls:
+            response_text = extract_text(last_ai_message)
+        else:
+            # No clean final text (recursion cap, or the graph's last message
+            # still carries tool_calls) — force one plain call for a summary.
+            fallback = self.llm.invoke([SystemMessage(self._create_system_prompt())] + input_messages + new_messages)
+            response_text = extract_text(fallback)
 
         self.last_tools_used = [
             tc["name"] for tc in tool_calls_made if tc["name"] != "search_knowledge_base"
@@ -219,7 +280,7 @@ Always prioritize user needs while maintaining security and access control."""
         self.last_rag_used = [
             tc["args"].get("query") for tc in tool_calls_made if tc["name"] == "search_knowledge_base"
         ]
-        self.last_token_usage = result["token_usage"]
+        self.last_token_usage = _sum_usage([_extract_usage(m) for m in new_messages if isinstance(m, AIMessage)])
 
         agents_used = ["Supervisor Agent"]
         for tc in tool_calls_made:
