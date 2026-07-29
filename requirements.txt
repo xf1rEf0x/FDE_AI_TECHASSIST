@@ -12,3 +12,4 @@ langchain-mcp-adapters>=0.3.0
 mcp<2.0.0
 langgraph>=0.2.0
 upstash-redis>=1.0.0
+upstash-vector>=0.6.0
