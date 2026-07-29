@@ -1,10 +1,11 @@
 """Ticket storage layer with JSON persistence and access control."""
 
-import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from pydantic import BaseModel
+
+from src.storage.blob_store import load_blob, save_blob, is_remote
 
 
 class Ticket(BaseModel):
@@ -23,10 +24,9 @@ class TicketStore:
     """Manages ticket storage with per-user access control."""
 
     def __init__(self, store_path: str = "data/tickets.json"):
-        """Initialize store, creating parent directories and empty file if missing."""
-        self.store_path = Path(store_path)
-        self.store_path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.store_path.exists():
+        """Initialize store, eagerly creating the local file if not using Redis."""
+        self.store_path = store_path
+        if not is_remote() and not Path(store_path).exists():
             self._save([])
 
     def create_ticket(
@@ -84,13 +84,9 @@ class TicketStore:
         return None
 
     def _load(self) -> list[dict]:
-        """Load tickets from JSON file."""
-        if not self.store_path.exists():
-            return []
-        with open(self.store_path) as f:
-            return json.load(f)
+        """Load tickets."""
+        return load_blob("tickets", self.store_path, [])
 
     def _save(self, tickets: list[dict]) -> None:
-        """Save tickets to JSON file."""
-        with open(self.store_path, "w") as f:
-            json.dump(tickets, f, indent=2)
+        """Save tickets."""
+        save_blob("tickets", self.store_path, tickets)

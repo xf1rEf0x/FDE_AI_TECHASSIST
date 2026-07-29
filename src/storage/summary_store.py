@@ -1,10 +1,11 @@
 """Support summary storage layer (mirrors TicketStore's shape)."""
 
-import json
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from pydantic import BaseModel
+
+from src.storage.blob_store import load_blob, save_blob, is_remote
 
 
 class SupportSummary(BaseModel):
@@ -21,10 +22,9 @@ class SummaryStore:
     """Manages support summary storage."""
 
     def __init__(self, store_path: str = "data/support_summaries.json"):
-        """Initialize store, creating parent directories and empty file if missing."""
-        self.store_path = Path(store_path)
-        self.store_path.parent.mkdir(parents=True, exist_ok=True)
-        if not self.store_path.exists():
+        """Initialize store, eagerly creating the local file if not using Redis."""
+        self.store_path = store_path
+        if not is_remote() and not Path(store_path).exists():
             self._save([])
 
     def save_summary(
@@ -49,13 +49,9 @@ class SummaryStore:
         return [SupportSummary(**r) for r in records if r["user_email"] == user_email]
 
     def _load(self) -> list[dict]:
-        """Load summaries from JSON file."""
-        if not self.store_path.exists():
-            return []
-        with open(self.store_path) as f:
-            return json.load(f)
+        """Load summaries."""
+        return load_blob("support_summaries", self.store_path, [])
 
     def _save(self, records: list[dict]) -> None:
-        """Save summaries to JSON file."""
-        with open(self.store_path, "w") as f:
-            json.dump(records, f, indent=2)
+        """Save summaries."""
+        save_blob("support_summaries", self.store_path, records)

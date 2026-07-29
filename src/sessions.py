@@ -1,33 +1,22 @@
 """Session history persistence for chat conversations."""
 
-import json
 import uuid
 from datetime import datetime
 from pathlib import Path
 
+from src.storage.blob_store import load_blob, save_blob
 
 SESSIONS_FILE = Path("data/sessions.json")
 
 
-def ensure_data_dir():
-    """Create data directory if it doesn't exist."""
-    SESSIONS_FILE.parent.mkdir(exist_ok=True)
-
-
 def load_sessions() -> dict:
-    """Load all sessions from file. Returns empty dict if file doesn't exist."""
-    ensure_data_dir()
-    if SESSIONS_FILE.exists():
-        with open(SESSIONS_FILE, "r") as f:
-            return json.load(f)
-    return {}
+    """Load all sessions. Returns empty dict if none exist yet."""
+    return load_blob("sessions", SESSIONS_FILE, {})
 
 
 def save_sessions(sessions: dict):
-    """Write sessions to file."""
-    ensure_data_dir()
-    with open(SESSIONS_FILE, "w") as f:
-        json.dump(sessions, f, indent=2)
+    """Save sessions."""
+    save_blob("sessions", SESSIONS_FILE, sessions)
 
 
 def create_session(role: str, messages: list) -> str:

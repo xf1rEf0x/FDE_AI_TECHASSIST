@@ -3,19 +3,22 @@
 import json
 from pathlib import Path
 
-USERS_FILE = Path("data/users.json")
+from src.storage.blob_store import load_blob, save_blob
+
+USERS_FILE = "data/users.json"
 
 
 def _load_users() -> dict:
-    """Load all user records from disk."""
-    with open(USERS_FILE) as f:
-        return json.load(f)
+    """Load all user records. On Redis, seeds from the repo's checked-in
+    data/users.json the first time (before any account_status changes have
+    been saved to Redis), so login works out of the box on a fresh deploy."""
+    seed = json.loads(Path(USERS_FILE).read_text()) if Path(USERS_FILE).exists() else {}
+    return load_blob("users", USERS_FILE, seed)
 
 
 def _save_users(users: dict) -> None:
-    """Save all user records to disk."""
-    with open(USERS_FILE, "w") as f:
-        json.dump(users, f, indent=2)
+    """Save all user records."""
+    save_blob("users", USERS_FILE, users)
 
 
 # Cached snapshot used for credential/profile lookups (password, employee_id,
