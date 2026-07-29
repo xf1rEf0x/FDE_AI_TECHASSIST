@@ -9,4 +9,5 @@ pypdf>=4.0.0
 langchain-google-genai>=0.0.1
 langchain-huggingface>=0.1.0
 langchain-mcp-adapters>=0.3.0
+mcp<2.0.0
 langgraph>=0.2.0
