@@ -94,7 +94,7 @@ def test_ticket_is_only_created_after_explicit_confirmation(monkeypatch):
     monkeypatch.setattr(
         SupervisorAgent,
         "_build_llm",
-        lambda self, provider, model_name, temperature: (mock_llm, "gemini-3.1-flash-lite"),
+        lambda self, provider, model_name, temperature: (mock_llm, "gemini-3.5-flash-lite"),
     )
 
     supervisor = SupervisorAgent("alice.johnson@techassist.com", "employee", employee_id="EMP001")

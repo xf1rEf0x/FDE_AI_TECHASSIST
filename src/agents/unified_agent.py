@@ -323,7 +323,7 @@ class TechAssistAgent:
         if provider != "google":
             raise ValueError(f"Unknown provider: {provider}")
 
-        resolved_model = model_name or "gemini-3.1-flash-lite"
+        resolved_model = model_name or "gemini-3.5-flash-lite"
         return ChatGoogleGenerativeAI(
             model=resolved_model,
             temperature=temperature,
