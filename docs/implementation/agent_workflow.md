@@ -25,12 +25,27 @@ app.py -> SupervisorAgent.invoke() -> LangGraph StateGraph (agent <-> tools loop
                                           `-- notify_user              (= Notification Agent)
 ```
 
-The two sub-agents (Asset & Support, Notification) are unaffected by this —
-each still runs its own independent instance of the original hand-rolled
-`run_tool_calling_loop` ([agent_loop.py](../../src/agents/agent_loop.py)),
-which repeatedly asks the LLM for a response, executes any tool calls it
-makes, feeds the results back in, and repeats (up to `max_iterations`) until
-the model returns plain text with no further tool calls.
+The two sub-agents (Asset & Support, Notification) follow the same pattern —
+`run_asset_support_agent` ([asset_support_agent.py](../../src/agents/asset_support_agent.py))
+and `run_notification_agent` ([notification_agent.py](../../src/agents/notification_agent.py))
+each build and run their own small two-node LangGraph `StateGraph`, structurally
+identical to the Supervisor's: an `agent` node calling the tool-bound LLM, a
+`tools` node via `ToolNode`, and `tools_condition` routing between them until
+the model returns plain text with no further tool calls. The original
+hand-rolled `run_tool_calling_loop` ([agent_loop.py](../../src/agents/agent_loop.py))
+still exists and is still unit-tested, but no production code calls it
+anymore. The Request Analysis Agent is unchanged — `analyze_request()` is
+still a single `llm.with_structured_output(...)` call, no loop or graph.
+
+`langgraph dev` / Studio ([studio_graph.py](../../src/agents/studio_graph.py),
+[langgraph.json](../../langgraph.json)) only ever visualizes the Supervisor's
+top-level `agent`/`tools` graph — the sub-agent graphs run nested inside calls
+made from that `tools` node (via the `analyze_support_request` /
+`asset_and_ticket_support` / `notify_user` delegation tools), so they don't
+appear as separate boxes on the Studio canvas. They do show up as nested
+spans/child runs in LangSmith trace views (if `LANGCHAIN_TRACING_V2=true` is
+set), since they're now real LangGraph executions rather than plain Python
+function calls.
 
 Each delegation tool brackets its call with a progress callback
 (`self._on_progress(...)`) so the UI can show a live "`<Agent>` working..."
@@ -43,8 +58,8 @@ for the end-of-message tooltip.
 |---|---|---|---|
 | **Supervisor Agent** | [supervisor_agent.py](../../src/agents/supervisor_agent.py) | The main LLM with function-calling. Reads the system prompt, decides which tools/agents to call and in what order. Holds conversation memory. | Always — the entry point for every user message |
 | **Request Analysis Agent** | [request_analysis_agent.py](../../src/agents/request_analysis_agent.py) | A single structured-output LLM call that extracts `{issue, device, action}` from free-form text | When the message describes a device/VPN/hardware problem — the first step before any ticket work |
-| **Asset & Support Agent** | [asset_support_agent.py](../../src/agents/asset_support_agent.py) | A small tool-calling agent with its own loop. Looks up the employee's asset, checks warranty, and creates tickets | When an asset/warranty lookup is needed, or once the user has confirmed ticket creation |
-| **Notification Agent** | [notification_agent.py](../../src/agents/notification_agent.py) | A small tool-calling agent. Either previews the ticket and asks for confirmation, or saves the final interaction summary | Before ticket creation (preview) and after (summary) |
+| **Asset & Support Agent** | [asset_support_agent.py](../../src/agents/asset_support_agent.py) | A small tool-calling agent with its own two-node LangGraph `StateGraph` (agent/tools). Looks up the employee's asset, checks warranty, and creates tickets | When an asset/warranty lookup is needed, or once the user has confirmed ticket creation |
+| **Notification Agent** | [notification_agent.py](../../src/agents/notification_agent.py) | A small tool-calling agent with its own two-node LangGraph `StateGraph` (agent/tools). Either previews the ticket and asks for confirmation, or saves the final interaction summary | Before ticket creation (preview) and after (summary) |
 
 ## Tools
 
