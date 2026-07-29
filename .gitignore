@@ -21,7 +21,6 @@ data/sessions.json
 SLIDES.md
 .superpowers/
 streamlit.log
-rag/
 venv/
 .langgraph_api/
 langgraph.json
