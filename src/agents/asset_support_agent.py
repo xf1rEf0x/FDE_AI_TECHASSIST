@@ -2,8 +2,12 @@
 """Asset & Support Agent: searches assets, checks warranty, and creates tickets."""
 
 from langchain_core.tools import tool
+from langgraph.graph import StateGraph, MessagesState
+from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.errors import GraphRecursionError
+from langchain_core.messages import SystemMessage, HumanMessage, AIMessage
 
-from src.agents.agent_loop import run_tool_calling_loop
+from src.agents.agent_loop import extract_text
 from src.tools.asset_search_tool import search_employee_assets
 from src.tools.warranty_tools import check_asset_warranty
 from src.tools.ticket_tools import create_ticket_tool
@@ -51,11 +55,49 @@ def _build_tools(user_email: str, employee_id: str, is_admin: bool) -> list:
     return [search_asset, check_warranty, create_ticket]
 
 
+def _build_graph(llm_with_tools, tools: list, system_prompt: str):
+    """Two-node LangGraph loop (agent calls the tool-bound LLM, tools node
+    executes any tool calls), mirroring SupervisorAgent._build_graph()."""
+
+    def call_model(state):
+        response = llm_with_tools.invoke([SystemMessage(system_prompt)] + state["messages"])
+        return {"messages": [response]}
+
+    graph = StateGraph(MessagesState)
+    graph.add_node("agent", call_model)
+    graph.add_node("tools", ToolNode(tools))
+    graph.set_entry_point("agent")
+    graph.add_conditional_edges("agent", tools_condition)
+    graph.add_edge("tools", "agent")
+    return graph.compile()
+
+
 def run_asset_support_agent(
     llm, user_email: str, employee_id: str, is_admin: bool, instruction: str, context: str = ""
 ) -> str:
     """Run the Asset & Support Agent for one delegated task."""
     tools = _build_tools(user_email, employee_id, is_admin)
-    messages = [("user", f"Instruction: {instruction}\n\nContext:\n{context}")]
-    result = run_tool_calling_loop(llm, tools, ASSET_SUPPORT_SYSTEM_PROMPT, messages)
-    return result["text"]
+    llm_with_tools = llm.bind_tools(tools)
+    graph = _build_graph(llm_with_tools, tools, ASSET_SUPPORT_SYSTEM_PROMPT)
+
+    input_messages = [HumanMessage(f"Instruction: {instruction}\n\nContext:\n{context}")]
+    last_state = {"messages": input_messages}
+    try:
+        for last_state in graph.stream(
+            {"messages": input_messages},
+            config={"recursion_limit": 11, "max_concurrency": 1},
+            stream_mode="values",
+        ):
+            pass
+    except GraphRecursionError:
+        pass
+
+    final_messages = last_state["messages"]
+    last_ai_message = next(
+        (m for m in reversed(final_messages) if isinstance(m, AIMessage)), None
+    )
+    if last_ai_message is not None and not last_ai_message.tool_calls:
+        return extract_text(last_ai_message)
+
+    fallback = llm.invoke([SystemMessage(ASSET_SUPPORT_SYSTEM_PROMPT)] + final_messages)
+    return extract_text(fallback)
