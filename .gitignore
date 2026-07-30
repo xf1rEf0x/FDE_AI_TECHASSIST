@@ -18,6 +18,10 @@ build/
 *~
 .streamlit/secrets.toml
 data/sessions.json
+data/tickets.json
+data/software_requests.json
+data/password_reset_requests.json
+data/support_summaries.json
 SLIDES.md
 .superpowers/
 streamlit.log

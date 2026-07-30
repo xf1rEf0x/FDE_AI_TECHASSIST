@@ -1,6 +1,7 @@
-"""LangChain agents for the Help Desk system."""
+"""LangChain agents for the Help Desk system.
 
-# Agents have been consolidated into the unified TechAssistAgent.
-# See src/conversation.py for the unified agent implementation.
+See src/agents/supervisor_agent.py for the multi-agent Supervisor used by
+src/conversation.py.
+"""
 
 __all__ = []

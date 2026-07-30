@@ -25,52 +25,34 @@ def test_ticket_is_only_created_after_explicit_confirmation(monkeypatch):
     monkeypatch.setattr(na, "generate_summary_tool", generate_summary_mock)
 
     responses = [
-        # --- Turn 1: analyze, look up asset + warranty, preview, wait ---
-        _tool_call_message("analyze_support_request", {"user_message": "VPN issue"}, "t1"),
+        # --- Turn 1: run_ticket_workflow_preview (analyze -> asset/warranty -> preview) ---
         _tool_call_message(
-            "asset_and_ticket_support",
-            {
-                "instruction": "Look up the asset and check warranty. Do not create a ticket yet.",
-                "context": "Issue: VPN Connection, Device: Company Laptop",
-            },
-            "t2",
+            "run_ticket_workflow_preview",
+            {"user_message": "My laptop isn't connecting to the company VPN. Create a ticket and check if my warranty is active."},
+            "t1",
         ),
+        # Inside run_ticket_workflow_preview: Asset & Support Agent's own inner loop
         _tool_call_message("search_asset", {"query": "Alice Johnson"}, "a1"),
         _tool_call_message("check_warranty", {"query": "Alice Johnson"}, "a2"),
         AIMessage(content="Found MacBook Pro, warranty is active."),
-        _tool_call_message(
-            "notify_user",
-            {
-                "instruction": "Preview the ticket details and ask for confirmation.",
-                "context": "Issue: VPN Connection, Device: Company Laptop, Warranty: ACTIVE",
-            },
-            "t3",
-        ),
+        # Inside run_ticket_workflow_preview: Notification Agent's own inner loop (preview only)
         AIMessage(content="### Ticket Preview\nShall I proceed? (yes/no)"),
+        # Supervisor's own agent node sees the tool result and produces the final reply
         AIMessage(content="### Ticket Preview\nShall I proceed? (yes/no)"),
-        # --- Turn 2: user confirmed, create ticket, summarize ---
+        # --- Turn 2: user confirmed -> run_ticket_workflow_confirm (create ticket -> summarize) ---
         _tool_call_message(
-            "asset_and_ticket_support",
-            {
-                "instruction": "The user confirmed. Create the ticket now.",
-                "context": "Issue: VPN Connection, Device: Company Laptop",
-            },
-            "t4",
+            "run_ticket_workflow_confirm",
+            {"context": "Issue: VPN Connection, Device: Company Laptop, Warranty: ACTIVE"},
+            "t2",
         ),
+        # Inside run_ticket_workflow_confirm: Asset & Support Agent's own inner loop
         _tool_call_message(
             "create_ticket",
             {"title": "VPN Connection Issue", "description": "Company laptop cannot connect to VPN"},
             "c1",
         ),
         AIMessage(content="Ticket tkt-1 created."),
-        _tool_call_message(
-            "notify_user",
-            {
-                "instruction": "The user confirmed and the ticket is created. Generate the summary.",
-                "context": "Ticket ID: tkt-1",
-            },
-            "t5",
-        ),
+        # Inside run_ticket_workflow_confirm: Notification Agent's own inner loop
         _tool_call_message(
             "generate_summary",
             {
@@ -80,6 +62,7 @@ def test_ticket_is_only_created_after_explicit_confirmation(monkeypatch):
             "g1",
         ),
         AIMessage(content="All done! Summary saved."),
+        # Supervisor's own agent node sees the tool result and produces the final reply
         AIMessage(content="Ticket tkt-1 created and summary saved. Thanks!"),
     ]
 
@@ -94,7 +77,7 @@ def test_ticket_is_only_created_after_explicit_confirmation(monkeypatch):
     monkeypatch.setattr(
         SupervisorAgent,
         "_build_llm",
-        lambda self, provider, model_name, temperature: (mock_llm, "gemini-3.5-flash-lite"),
+        lambda self, provider, model_name, temperature: (mock_llm, "gemini-3.1-flash-lite"),
     )
 
     supervisor = SupervisorAgent("alice.johnson@techassist.com", "employee", employee_id="EMP001")
@@ -119,7 +102,13 @@ def test_ticket_is_only_created_after_explicit_confirmation(monkeypatch):
 
 def test_on_progress_reports_delegated_agents_in_order(monkeypatch):
     responses = [
-        _tool_call_message("analyze_support_request", {"user_message": "VPN issue"}, "t1"),
+        _tool_call_message(
+            "run_ticket_workflow_preview",
+            {"user_message": "My VPN is broken"},
+            "t1",
+        ),
+        AIMessage(content="Found no asset on file."),
+        AIMessage(content="### Ticket Preview\nShall I proceed? (yes/no)"),
         AIMessage(content="Here's what I found."),
     ]
 
@@ -134,7 +123,7 @@ def test_on_progress_reports_delegated_agents_in_order(monkeypatch):
     monkeypatch.setattr(
         SupervisorAgent,
         "_build_llm",
-        lambda self, provider, model_name, temperature: (mock_llm, "gemini-3.5-flash-lite"),
+        lambda self, provider, model_name, temperature: (mock_llm, "gemini-3.1-flash-lite"),
     )
 
     supervisor = SupervisorAgent("alice.johnson@techassist.com", "employee", employee_id="EMP001")
@@ -142,5 +131,12 @@ def test_on_progress_reports_delegated_agents_in_order(monkeypatch):
     progress_labels = []
     supervisor.invoke("My VPN is broken", on_progress=progress_labels.append)
 
-    assert progress_labels == ["Supervisor Agent", "Request Analysis Agent", "Supervisor Agent"]
-    assert supervisor.last_agents_used == ["Supervisor Agent", "Request Analysis Agent"]
+    assert progress_labels == [
+        "Supervisor Agent",
+        "Request Analysis Agent → Asset & Support Agent → Notification Agent",
+        "Supervisor Agent",
+    ]
+    assert supervisor.last_agents_used == [
+        "Supervisor Agent",
+        "Request Analysis Agent → Asset & Support Agent → Notification Agent",
+    ]

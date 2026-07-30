@@ -2,20 +2,33 @@
 agents as tools, alongside all Phase 2 helpdesk tools."""
 
 import os
+from typing import Annotated, NotRequired, TypedDict
+
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_huggingface import ChatHuggingFace, HuggingFaceEndpoint
 from langchain_core.tools import tool
-from langchain_core.messages import HumanMessage, AIMessage, SystemMessage
+from langchain_core.messages import HumanMessage, AIMessage, SystemMessage, ToolMessage
 from langchain_core.chat_history import InMemoryChatMessageHistory
-from langgraph.graph import StateGraph, MessagesState, END
-from langgraph.prebuilt import ToolNode, tools_condition
+from langgraph.graph import StateGraph, END
+from langgraph.graph.message import add_messages
+from langgraph.prebuilt import ToolNode
 from langgraph.errors import GraphRecursionError
 
-from src.agents.unified_agent import build_helpdesk_tools, rag_retriever
+from src.agents.helpdesk_tools import build_helpdesk_tools, rag_retriever
 from src.agents.agent_loop import extract_text, _extract_usage, _sum_usage
 from src.agents.request_analysis_agent import analyze_request
 from src.agents.asset_support_agent import run_asset_support_agent
 from src.agents.notification_agent import run_notification_agent
+
+
+class SupervisorGraphState(TypedDict):
+    """Supervisor graph state: messages plus scratch fields carrying the
+    ticket-workflow's issue/device/findings across its dedicated nodes."""
+
+    messages: Annotated[list, add_messages]
+    workflow_phase: NotRequired[str]  # "preview" or "confirm"
+    workflow_context: NotRequired[str]
+    workflow_tool_call_id: NotRequired[str]
 
 
 class SupervisorAgent:
@@ -28,9 +41,8 @@ class SupervisorAgent:
 
     PROVIDER_LABELS = {"google": "Google Gemini", "huggingface": "HuggingFace"}
     AGENT_TOOL_LABELS = {
-        "analyze_support_request": "Request Analysis Agent",
-        "asset_and_ticket_support": "Asset & Support Agent",
-        "notify_user": "Notification Agent",
+        "run_ticket_workflow_preview": "Request Analysis Agent → Asset & Support Agent → Notification Agent",
+        "run_ticket_workflow_confirm": "Asset & Support Agent → Notification Agent",
     }
 
     def __init__(
@@ -57,7 +69,8 @@ class SupervisorAgent:
 
         self.llm, self.model_name = self._build_llm(provider, model_name, temperature)
         self.memory = InMemoryChatMessageHistory()
-        self.tools = self._define_tools()
+        self.base_tools, self.workflow_tools = self._define_tools()
+        self.tools = self.base_tools + self.workflow_tools
         self.max_iterations = 6
         self.llm_with_tools = self.llm.bind_tools(self.tools)
         self.graph = self._build_graph()
@@ -74,51 +87,39 @@ class SupervisorAgent:
         if provider != "google":
             raise ValueError(f"Unknown provider: {provider}")
 
-        resolved_model = model_name or "gemini-3.5-flash-lite"
+        resolved_model = model_name or "gemini-3.1-flash-lite"
         return ChatGoogleGenerativeAI(model=resolved_model, temperature=temperature), resolved_model
 
-    def _define_tools(self) -> list:
+    def _define_tools(self) -> tuple[list, list]:
+        """Returns (base_tools, workflow_tools).
+
+        base_tools are executed normally through the graph's `tools` ToolNode.
+        workflow_tools (run_ticket_workflow_preview/confirm) are schema-only —
+        the LLM sees and calls them like any other tool, but `_route_after_agent`
+        intercepts those two names and sends execution to the dedicated
+        request_analysis_agent/asset_support_agent/notification_agent nodes
+        instead of ToolNode, so Studio renders them as real graph nodes."""
         base_tools = build_helpdesk_tools(self.user_email, self.user_role, self.employee_id, rag_retriever)
 
-        user_email = self.user_email
-        employee_id = self.employee_id
-        is_admin = self.user_role == "admin"
-        llm = self.llm
+        @tool
+        def run_ticket_workflow_preview(user_message: str) -> str:
+            """Run the support ticket workflow up through the confirmation step:
+            analyze the request, look up the asset and check warranty, then present
+            a ticket preview and ask the user to confirm. Call this once for new
+            device/VPN/hardware issues that may need a ticket. Do not call it again
+            once a preview has been shown — wait for the user's explicit
+            confirmation and call run_ticket_workflow_confirm instead."""
+            raise NotImplementedError("Executed via graph nodes, not ToolNode — see _route_after_agent.")
 
         @tool
-        def analyze_support_request(user_message: str) -> str:
-            """Extract issue type, device, and required action from a free-form IT
-            support request. Call this first for new device/VPN/hardware issues before
-            looking anything up."""
-            # No self._on_progress(...) here: LangGraph's ToolNode runs tool calls on a
-            # worker thread (even with max_concurrency=1), which lacks Streamlit's
-            # ScriptRunContext — calling a Streamlit widget API from here raises
-            # streamlit.errors.NoSessionContext. Progress is reported from invoke()'s
-            # main-thread streaming loop instead, based on the graph's state.
-            result = analyze_request(llm, user_message)
-            return result.model_dump_json()
+        def run_ticket_workflow_confirm(context: str) -> str:
+            """Call this once the user has explicitly confirmed ticket creation
+            (e.g. 'yes', 'go ahead'). Creates the ticket and generates the final
+            summary. `context` should restate the issue/device/findings from the
+            preview step."""
+            raise NotImplementedError("Executed via graph nodes, not ToolNode — see _route_after_agent.")
 
-        @tool
-        def asset_and_ticket_support(instruction: str, context: str = "") -> str:
-            """Delegate to the Asset & Support Agent to search assets, check warranty,
-            or create a support ticket. `instruction` tells it what to do right now
-            (e.g. 'look up the asset and check warranty, do not create a ticket yet'
-            or 'the user confirmed, create the ticket now'). `context` carries the
-            relevant details gathered so far (issue, device, prior findings)."""
-            result = run_asset_support_agent(llm, user_email, employee_id, is_admin, instruction, context)
-            return result
-
-        @tool
-        def notify_user(instruction: str, context: str = "") -> str:
-            """Delegate to the Notification Agent to present ticket details and ask
-            for confirmation, or to generate and save a final support summary.
-            `instruction` e.g. 'preview these ticket details and ask for confirmation'
-            or 'the user confirmed and the ticket is created, generate the summary'.
-            `context` carries the relevant details to present or summarize."""
-            result = run_notification_agent(llm, user_email, instruction, context)
-            return result
-
-        return base_tools + [analyze_support_request, asset_and_ticket_support, notify_user]
+        return base_tools, [run_ticket_workflow_preview, run_ticket_workflow_confirm]
 
     def _create_system_prompt(self) -> str:
         admin_line = (
@@ -138,28 +139,26 @@ Solutions, acting as a Supervisor over specialized agents.
 Always format your responses using markdown: **bold** for key info, `code` for IDs, \
 bullet/numbered lists, ### headers for sections, > for notes, tables for structured data.
 
-==== MULTI-AGENT WORKFLOW (device/VPN/hardware issues) ====
+==== MULTI-AGENT TICKET WORKFLOW (device/VPN/hardware issues) ====
 For requests that describe a device problem, possibly needing a ticket and/or a warranty
 check (e.g. "my laptop won't connect to VPN, create a ticket and check my warranty"):
 
 0. For technical/connectivity issues (VPN, password/account trouble, connectivity, etc.),
    ALWAYS call search_knowledge_base(query) first. If it returns relevant documentation,
-   answer using that information and stop there. Only continue into the steps below if
-   the knowledge base doesn't resolve the issue or the user still wants a ticket created.
-1. Call analyze_support_request(user_message) to extract issue/device/action.
-2. If a ticket may be needed, call asset_and_ticket_support with an instruction to look
-   up the asset and check warranty ONLY — do not ask it to create a ticket yet.
-3. Call notify_user with an instruction to preview the proposed ticket (issue, device,
-   warranty status) and ask the user to confirm. Then STOP and wait for the user's reply
-   — do NOT create the ticket in this turn.
-4. Only on a later turn, once the user has explicitly confirmed (e.g. "yes", "go ahead"),
-   call asset_and_ticket_support again with an instruction stating the user confirmed and
-   to create the ticket now, using the issue/device from step 1-2 as context.
-5. Then call notify_user with an instruction to generate and save the summary, and present
-   the final confirmation (ticket ID + summary) to the user.
+   answer using that information and stop there. Only continue below if the knowledge
+   base doesn't resolve the issue or the user still wants a ticket created.
+1. Call run_ticket_workflow_preview(user_message) with the user's original request. It
+   runs the Request Analysis, Asset & Support, and Notification agents in sequence and
+   returns a ticket preview asking the user to confirm. Present that preview and STOP —
+   do not create the ticket in this turn.
+2. Only on a later turn, once the user has explicitly confirmed (e.g. "yes", "go ahead"),
+   call run_ticket_workflow_confirm(context) with the issue/device/findings from the
+   preview as context. It creates the ticket, generates the summary, and returns the
+   final confirmation — present that to the user.
 
-HARD RULE: never let a ticket be created in the same turn as its preview. Always wait for
-a separate, explicit user confirmation message first.
+HARD RULE: never call run_ticket_workflow_confirm in the same turn as
+run_ticket_workflow_preview. Always wait for a separate, explicit user confirmation
+message first.
 
 ==== OTHER CAPABILITIES (tools) ====
 TICKET MANAGEMENT: create_ticket, check_ticket_status, list_my_tickets, close_ticket
@@ -190,22 +189,93 @@ their own tickets and requests; admins can view/approve requests from all users.
 
 Always prioritize user needs while maintaining security and access control."""
 
+    @staticmethod
+    def _find_tool_call(message, name):
+        return next((tc for tc in (message.tool_calls or []) if tc["name"] == name), None)
+
     def _build_graph(self):
-        """Two-node LangGraph loop equivalent to the old run_tool_calling_loop:
-        an `agent` node calls the (already tool-bound) LLM, a `tools` node
-        executes any tool calls, looping until the model stops calling tools."""
+        """Supervisor graph: an `agent` node (tool-bound LLM) routes to either
+        the plain `tools` ToolNode (all Phase 2 helpdesk tools) or, for the
+        ticket workflow, a dedicated chain of real nodes — request_analysis_agent
+        -> asset_support_agent -> notification_agent — so each specialist agent
+        is its own visible node instead of a function call hidden inside a tool.
+        """
         system_prompt = self._create_system_prompt()
+        llm = self.llm
+        user_email = self.user_email
+        employee_id = self.employee_id
+        is_admin = self.user_role == "admin"
 
         def call_model(state):
             response = self.llm_with_tools.invoke([SystemMessage(system_prompt)] + state["messages"])
             return {"messages": [response]}
 
-        graph = StateGraph(MessagesState)
+        def route_after_agent(state):
+            last = state["messages"][-1]
+            if not isinstance(last, AIMessage) or not last.tool_calls:
+                return END
+            if self._find_tool_call(last, "run_ticket_workflow_preview"):
+                return "request_analysis_agent"
+            if self._find_tool_call(last, "run_ticket_workflow_confirm"):
+                return "asset_support_agent"
+            return "tools"
+
+        def request_analysis_node(state):
+            tc = self._find_tool_call(state["messages"][-1], "run_ticket_workflow_preview")
+            analysis = analyze_request(llm, tc["args"]["user_message"])
+            context = f"Issue: {analysis.issue} | Device: {analysis.device} | Action: {analysis.action}"
+            return {"workflow_phase": "preview", "workflow_context": context, "workflow_tool_call_id": tc["id"]}
+
+        def asset_support_node(state):
+            if state.get("workflow_phase") == "preview":
+                context = state["workflow_context"]
+                instruction = "Look up the asset and check warranty only. Do not create a ticket yet."
+                update = {}
+            else:
+                tc = self._find_tool_call(state["messages"][-1], "run_ticket_workflow_confirm")
+                context = tc["args"]["context"]
+                instruction = "The user confirmed. Create the ticket now."
+                update = {"workflow_phase": "confirm", "workflow_tool_call_id": tc["id"]}
+
+            result = run_asset_support_agent(llm, user_email, employee_id, is_admin, instruction, context)
+            label = "Ticket result" if update else "Findings"
+            update["workflow_context"] = f"{context}\n\n{label}: {result}"
+            return update
+
+        def notification_node(state):
+            preview = state["workflow_phase"] == "preview"
+            instruction = (
+                "Preview the proposed ticket (issue, device, warranty status) and ask "
+                "the user to confirm. Do not create the ticket yet."
+                if preview
+                else "The ticket has been created and the user confirmed. Generate and save the summary."
+            )
+            result = run_notification_agent(llm, user_email, instruction, state["workflow_context"])
+            tool_message = ToolMessage(content=result, tool_call_id=state["workflow_tool_call_id"])
+            return {"messages": [tool_message]}
+
+        graph = StateGraph(SupervisorGraphState)
         graph.add_node("agent", call_model)
-        graph.add_node("tools", ToolNode(self.tools))
+        graph.add_node("tools", ToolNode(self.base_tools))
+        graph.add_node("request_analysis_agent", request_analysis_node)
+        graph.add_node("asset_support_agent", asset_support_node)
+        graph.add_node("notification_agent", notification_node)
+
         graph.set_entry_point("agent")
-        graph.add_conditional_edges("agent", tools_condition)
+        graph.add_conditional_edges(
+            "agent",
+            route_after_agent,
+            {
+                "request_analysis_agent": "request_analysis_agent",
+                "asset_support_agent": "asset_support_agent",
+                "tools": "tools",
+                END: END,
+            },
+        )
         graph.add_edge("tools", "agent")
+        graph.add_edge("request_analysis_agent", "asset_support_agent")
+        graph.add_edge("asset_support_agent", "notification_agent")
+        graph.add_edge("notification_agent", "agent")
         return graph.compile()
 
     def _to_base_messages(self, messages: list) -> list:
@@ -275,9 +345,8 @@ Always prioritize user needs while maintaining security and access control."""
             new_messages = last_state["messages"][len(input_messages):]
         except GraphRecursionError:
             # Iteration cap hit while the model still wanted to call a tool —
-            # same fallback agent_loop.run_tool_calling_loop uses: one more
-            # plain (non-tool-bound) call so the model returns natural-language
-            # text instead of leaving the turn empty.
+            # one more plain (non-tool-bound) call so the model returns
+            # natural-language text instead of leaving the turn empty.
             new_messages = last_state["messages"][len(input_messages):]
 
         tool_calls_made = [
