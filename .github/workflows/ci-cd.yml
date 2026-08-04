@@ -44,6 +44,7 @@ jobs:
     runs-on: [self-hosted, wsl]
     needs: test
     if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    environment: production
     env:
       XDG_RUNTIME_DIR: /run/user/1001
       DBUS_SESSION_BUS_ADDRESS: unix:path=/run/user/1001/bus
