@@ -3,6 +3,8 @@ name: CI/CD
 on:
   push:
     branches: [master]
+  pull_request:
+    branches: [master]
 
 jobs:
   lint:
@@ -47,6 +49,6 @@ jobs:
           path: repo
       - run: rsync -a --delete --exclude venv --exclude .git repo/ /opt/techassist/
       - run: /opt/techassist/venv/bin/pip install -r /opt/techassist/requirements.txt
-      - run: sudo cp /opt/techassist/deploy/techassist.service /etc/systemd/system/techassist.service
-      - run: sudo systemctl daemon-reload
-      - run: sudo systemctl restart techassist
+      - run: mkdir -p ~/.config/systemd/user && cp /opt/techassist/deploy/techassist.service ~/.config/systemd/user/techassist.service
+      - run: systemctl --user daemon-reload
+      - run: systemctl --user restart techassist
