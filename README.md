@@ -104,6 +104,7 @@ fde_ai_1/
 - **Error handling**: Graceful handling of invalid input and API errors
 - **Stateless design**: Easy to extend with Phase 2 tools
 
+
 ## Architecture
 
 The application follows a simple, lazy architecture:
@@ -188,3 +189,6 @@ Internal use only. See CLAUDE.md for project context.
 ## Support
 
 For questions or issues, see the CLAUDE.md file for project documentation and context.
+
+- ☕ Powered by Gemini, Streamlit, and just the right amount of caffeine.
+- 🖨️ Successfully fixes many IT issues—printer problems remain a work in progress.
