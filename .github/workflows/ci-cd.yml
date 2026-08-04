@@ -51,7 +51,8 @@ jobs:
       - uses: actions/checkout@v4
         with:
           path: repo
-      - run: rsync -a --delete --exclude venv --exclude .git repo/ /opt/techassist/
+      - run: echo "${GITHUB_SHA::7}" > repo/commit.txt
+      - run: rsync -a --delete --exclude venv --exclude .git --exclude .env repo/ /opt/techassist/
       - run: /opt/techassist/venv/bin/pip install -r /opt/techassist/requirements.txt
       - run: mkdir -p ~/.config/systemd/user && cp /opt/techassist/deploy/techassist.service ~/.config/systemd/user/techassist.service
       - run: systemctl --user daemon-reload

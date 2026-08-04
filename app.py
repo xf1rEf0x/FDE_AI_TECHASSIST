@@ -10,7 +10,7 @@ import streamlit as st
 load_dotenv()
 from src.conversation import get_agent_instance
 from src.prompts import get_available_roles, get_system_prompt
-from src.utils import format_message
+from src.utils import format_message, get_build_info
 from src.sessions import (
     create_session,
     get_session,
@@ -85,6 +85,8 @@ if not get_current_user():
 - david@techassist.com / password123 (locked — ask admin to unlock)
 - engineer@techassist.com / engineer123
 - admin@techassist.com / admin123""", "info")
+
+        st.caption(get_build_info())
     st.stop()
 
 # ============================================================================
@@ -306,3 +308,5 @@ if user_input:
     user_message = format_message("user", user_input)
     st.session_state.messages.append(user_message)
     st.rerun()
+
+st.caption(get_build_info())
