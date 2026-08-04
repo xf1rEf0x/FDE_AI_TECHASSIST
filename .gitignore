@@ -28,3 +28,4 @@ streamlit.log
 venv/
 .langgraph_api/
 langgraph.json
+commit.txt
