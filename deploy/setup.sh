@@ -3,5 +3,6 @@
 set -euo pipefail
 
 loginctl enable-linger "$(whoami)"
-mkdir -p /opt/techassist
+sudo mkdir -p /opt/techassist
+sudo chown -R "$(whoami):$(whoami)" /opt/techassist
 python3 -m venv /opt/techassist/venv
