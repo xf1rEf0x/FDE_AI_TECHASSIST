@@ -1,0 +1,52 @@
+name: CI/CD
+
+on:
+  push:
+    branches: [master]
+
+jobs:
+  lint:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install ruff
+      - run: ruff check src tests app.py
+
+  build:
+    runs-on: ubuntu-latest
+    needs: lint
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: python -m compileall src app.py
+
+  test:
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - run: pip install -r requirements.txt
+      - run: pytest tests/
+
+  deploy:
+    runs-on: [self-hosted, wsl]
+    needs: test
+    if: github.ref == 'refs/heads/master' && github.event_name == 'push'
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          path: repo
+      - run: rsync -a --delete --exclude venv --exclude .git repo/ /opt/techassist/
+      - run: /opt/techassist/venv/bin/pip install -r /opt/techassist/requirements.txt
+      - run: sudo cp /opt/techassist/deploy/techassist.service /etc/systemd/system/techassist.service
+      - run: sudo systemctl daemon-reload
+      - run: sudo systemctl restart techassist
